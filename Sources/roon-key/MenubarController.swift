@@ -194,7 +194,7 @@ struct SettingsView: View {
                         .onAppear {
                             editingPresets = model.config.presets.map(String.init).joined(separator: ",")
                         }
-                        .onChange(of: editingPresets) { _, newVal in
+                        .onChange(of: editingPresets) { newVal in
                             let parsed = newVal
                                 .split(separator: ",")
                                 .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }

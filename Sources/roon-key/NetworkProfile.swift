@@ -57,7 +57,7 @@ public class NetworkProfile {
     /// 2. If a physical ethernet (en0, eth0) or non-VPN wifi (en*) is active,
     ///    classify home.
     /// 3. If none of the above, classify away (graceful degradation).
-    static func evaluatePath(_ path: NWPath) -> Bool {
+    nonisolated static func evaluatePath(_ path: NWPath) -> Bool {
         // Check for VPN tunnel interfaces
         let hasVPNInterface = path.availableInterfaces.contains { iface in
             let name = iface.name
@@ -79,8 +79,8 @@ public class NetworkProfile {
         return hasHomeInterface && path.status == .satisfied
     }
 
-    /// Synchronous check for use in tests via dependency injection.
-    public static func evaluate(interfaces: [(name: String, type: NWInterface.InterfaceType)]) -> Bool {
+    /// Synchronous nonisolated check for use in tests via dependency injection.
+    public nonisolated static func evaluate(interfaces: [(name: String, type: NWInterface.InterfaceType)]) -> Bool {
         let hasVPN = interfaces.contains { name, _ in
             name.hasPrefix("wg") || name.hasPrefix("utun")
         }

@@ -4,12 +4,12 @@ import Network
 /// BridgeDiscovery: finds roon-bridge via mDNS (_roon-bridge._tcp.local).
 ///
 /// On success, resolves the host/port and calls onEndpointResolved.
-/// Allows manual override from user settings (stored in roon-bridge config).
+/// Allows manual override from user settings.
 /// Falls back to static "mini.local:3100" if mDNS resolution takes >5s.
 @MainActor
 public class BridgeDiscovery {
 
-    public struct Endpoint: Equatable {
+    public struct Endpoint: Equatable, Sendable {
         public let host: String
         public let port: UInt16
 
@@ -41,7 +41,7 @@ public class BridgeDiscovery {
     private static let fallbackTimeoutSeconds: TimeInterval = 5.0
 
     private var browser: NWBrowser?
-    private var fallbackTimer: Timer?
+    private var fallbackTask: Task<Void, Never>?
     private var resolved = false
 
     public init() {}
@@ -53,14 +53,14 @@ public class BridgeDiscovery {
         }
 
         startMDNS()
-        startFallbackTimer()
+        startFallbackTask()
     }
 
     public func stop() {
         browser?.cancel()
         browser = nil
-        fallbackTimer?.invalidate()
-        fallbackTimer = nil
+        fallbackTask?.cancel()
+        fallbackTask = nil
     }
 
     // -------------------------------------------------------------------------
@@ -78,12 +78,14 @@ public class BridgeDiscovery {
         self.browser = browser
 
         browser.browseResultsChangedHandler = { [weak self] results, _ in
-            guard let self, !self.resolved else { return }
+            Task { @MainActor [weak self] in
+                guard let self, !self.resolved else { return }
 
-            for result in results {
-                if case let .service(name, type, domain, _) = result.endpoint {
-                    self.resolve(name: name, type: type, domain: domain)
-                    break
+                for result in results {
+                    if case let .service(name, type, domain, _) = result.endpoint {
+                        await self.resolve(name: name, type: type, domain: domain)
+                        break
+                    }
                 }
             }
         }
@@ -97,8 +99,9 @@ public class BridgeDiscovery {
         browser.start(queue: .main)
     }
 
-    private func resolve(name: String, type: String, domain: String) {
-        // Use NWConnection to resolve the service
+    private func resolve(name: String, type: String, domain: String) async {
+        guard !resolved else { return }
+
         let endpoint = NWEndpoint.service(
             name: name,
             type: type,
@@ -106,41 +109,58 @@ public class BridgeDiscovery {
             interface: nil
         )
 
-        let connection = NWConnection(to: endpoint, using: .tcp)
-        connection.stateUpdateHandler = { [weak self] state in
-            guard let self, !self.resolved else {
-                connection.cancel()
-                return
-            }
+        return await withCheckedContinuation { continuation in
+            let connection = NWConnection(to: endpoint, using: .tcp)
+            var didResume = false
 
-            if case .ready = state {
-                if let innerEndpoint = connection.currentPath?.remoteEndpoint,
-                   case let .hostPort(host, port) = innerEndpoint {
-                    let hostString = "\(host)"
-                    let portValue = port.rawValue
-                    self.resolved = true
-                    self.fallbackTimer?.invalidate()
-                    self.browser?.cancel()
-                    let resolvedEndpoint = Endpoint(host: hostString, port: portValue)
-                    Task { @MainActor in
-                        self.onEndpointResolved?(resolvedEndpoint)
+            connection.stateUpdateHandler = { [weak self] state in
+                Task { @MainActor [weak self] in
+                    guard let self, !didResume else { return }
+
+                    if case .ready = state {
+                        if let innerEndpoint = connection.currentPath?.remoteEndpoint,
+                           case let .hostPort(host, port) = innerEndpoint {
+                            didResume = true
+                            self.resolved = true
+                            self.fallbackTask?.cancel()
+                            self.browser?.cancel()
+                            let resolved = Endpoint(host: "\(host)", port: port.rawValue)
+                            self.onEndpointResolved?(resolved)
+                        }
+                        connection.cancel()
+                        if !didResume { continuation.resume() }
+                    } else if case let .failed(error) = state {
+                        print("[BridgeDiscovery] Resolve connection failed: \(error)")
+                        connection.cancel()
+                        if !didResume {
+                            didResume = true
+                            continuation.resume()
+                        }
                     }
                 }
-                connection.cancel()
-            } else if case let .failed(error) = state {
-                print("[BridgeDiscovery] Resolve connection failed: \(error)")
-                connection.cancel()
+            }
+
+            connection.start(queue: .main)
+
+            // Timeout after 2s per resolve attempt
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                if !didResume {
+                    didResume = true
+                    connection.cancel()
+                    continuation.resume()
+                }
             }
         }
-
-        connection.start(queue: .main)
     }
 
-    private func startFallbackTimer() {
-        fallbackTimer = Timer.scheduledTimer(
-            withTimeInterval: Self.fallbackTimeoutSeconds,
-            repeats: false
-        ) { [weak self] _ in
+    private func startFallbackTask() {
+        fallbackTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(Self.fallbackTimeoutSeconds))
+            } catch {
+                return // cancelled
+            }
             guard let self, !self.resolved else { return }
             self.resolved = true
             let endpoint = Endpoint(host: Self.fallbackHost, port: Self.fallbackPort)

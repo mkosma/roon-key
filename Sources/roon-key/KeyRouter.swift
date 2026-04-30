@@ -135,23 +135,21 @@ public enum ConsumerKey {
     case prevTrack
 
     /// Parse from the NX subtype 8 event's data1 field.
-    /// data1 layout: bits 16-31 = key code, bit 0 of key code = key-down.
+    /// data1 layout: bits 16-31 = key code, bits 8-15 = event type (0x0A = key-down).
     public static func from(data1: Int64) -> (key: ConsumerKey, isDown: Bool)? {
         let keyCode = (data1 & 0xFFFF0000) >> 16
         let isDown = (data1 & 0xFF00) >> 8 == 0x0A
 
+        let key: ConsumerKey
         switch keyCode {
-        case 0x00:   return (isDown: isDown, key: .volumeUp).swapped
-        case 0x01:   return (isDown: isDown, key: .volumeDown).swapped
-        case 0x02:   return (isDown: isDown, key: .mute).swapped
-        case 0x10:   return (isDown: isDown, key: .playPause).swapped
-        case 0x11:   return (isDown: isDown, key: .nextTrack).swapped
-        case 0x12:   return (isDown: isDown, key: .prevTrack).swapped
-        default:     return nil
+        case 0x00:  key = .volumeUp
+        case 0x01:  key = .volumeDown
+        case 0x02:  key = .mute
+        case 0x10:  key = .playPause
+        case 0x11:  key = .nextTrack
+        case 0x12:  key = .prevTrack
+        default:    return nil
         }
+        return (key: key, isDown: isDown)
     }
-}
-
-private extension (key: ConsumerKey, isDown: Bool) {
-    var swapped: (key: ConsumerKey, isDown: Bool) { self }
 }

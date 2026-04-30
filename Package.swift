@@ -15,6 +15,11 @@ let package = Package(
         .executableTarget(
             name: "roon-key",
             path: "Sources/roon-key",
+            exclude: [
+                // Info.plist is used by the .app bundle wrapper, not by the SPM binary.
+                // When building with Xcode, add it to the target's Info.plist setting.
+                "Info.plist",
+            ],
             swiftSettings: [
                 .define("DEBUG", .when(configuration: .debug)),
             ]
