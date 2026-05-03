@@ -181,6 +181,61 @@ final class RoonBridgeClientTests: XCTestCase {
     // setEndpoint
     // -------------------------------------------------------------------------
 
+    // -------------------------------------------------------------------------
+    // Auth header
+    // -------------------------------------------------------------------------
+
+    func testAuthHeaderAttachedWhenTokenProvided() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let authedSession = URLSession(configuration: config)
+        let authedClient = RoonBridgeClient(session: authedSession, authToken: "test-token-abc")
+
+        var capturedHeader: String?
+        MockURLProtocol.requestHandler = { request in
+            capturedHeader = request.value(forHTTPHeaderField: "Authorization")
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    Data(#"{"ok":true}"#.utf8))
+        }
+
+        try await authedClient.volumeRamp(direction: .up, step: 4)
+        XCTAssertEqual(capturedHeader, "Bearer test-token-abc")
+    }
+
+    func testNoAuthHeaderWhenTokenNil() async throws {
+        var capturedHeader: String?
+        MockURLProtocol.requestHandler = { request in
+            capturedHeader = request.value(forHTTPHeaderField: "Authorization")
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    Data(#"{"ok":true}"#.utf8))
+        }
+
+        try await client.volumeRamp(direction: .up)
+        XCTAssertNil(capturedHeader)
+    }
+
+    func testAuthHeaderOnGetRequests() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let authedSession = URLSession(configuration: config)
+        let authedClient = RoonBridgeClient(session: authedSession, authToken: "tok")
+
+        var capturedHeader: String?
+        MockURLProtocol.requestHandler = { request in
+            capturedHeader = request.value(forHTTPHeaderField: "Authorization")
+            let json = #"{"ok":true,"roon_connected":true}"#
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    Data(json.utf8))
+        }
+
+        _ = try await authedClient.status()
+        XCTAssertEqual(capturedHeader, "Bearer tok")
+    }
+
+    // -------------------------------------------------------------------------
+    // setEndpoint
+    // -------------------------------------------------------------------------
+
     func testSetEndpointUpdatesBaseURL() async throws {
         var capturedURL: URL?
 
