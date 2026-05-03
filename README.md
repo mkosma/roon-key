@@ -55,14 +55,22 @@ Open `roon-key.xcodeproj` (once Xcode project is generated). Build and run.
 
 Alternatively: File > Add Package Dependencies, add this repo, build the `roon-key` executable target.
 
-### Option B: Swift Package Manager (no Xcode)
+### Option B: Swift Package Manager + make-app.sh
+
+SPM alone produces a bare executable, which cannot be granted Accessibility
+permission and does not behave correctly under `LSUIElement`. Use the wrapper
+script to build a real `.app`:
 
 ```
-swift build -c release
+scripts/make-app.sh                # release build, output to ./build/roon-key.app
+scripts/make-app.sh --debug        # debug build
+scripts/make-app.sh --install      # also copy to /Applications
+scripts/make-app.sh --run          # also launch
 ```
 
-The binary will be at `.build/release/roon-key`. To run as a proper menubar app,
-wrap it in an `.app` bundle (see `scripts/make-app.sh` once written).
+The script runs `swift build -c release`, assembles `Contents/{MacOS,Info.plist}`,
+injects `CFBundleExecutable` and `CFBundlePackageType`, and ad-hoc codesigns the
+result so TCC has a stable identity for the Accessibility grant.
 
 ### Note: mini cannot build this
 
