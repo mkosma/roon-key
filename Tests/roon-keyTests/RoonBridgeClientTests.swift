@@ -5,6 +5,7 @@ import Foundation
 /// Tests for RoonBridgeClient request encoding and error handling.
 /// Uses a MockURLProtocol to intercept URLSession requests without
 /// making real network calls.
+@MainActor
 final class RoonBridgeClientTests: XCTestCase {
 
     private var session: URLSession!
