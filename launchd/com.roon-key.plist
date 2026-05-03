@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.roon-key</string>
+
+    <!--
+      Adjust ProgramArguments to the installed roon-key binary on mbp.
+      For a release-built .app bundle this is typically:
+        /Applications/roon-key.app/Contents/MacOS/roon-key
+      For a swift-build dev binary:
+        /Users/monty/dev/roon-key/.build/release/roon-key
+    -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Applications/roon-key.app/Contents/MacOS/roon-key</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>BRIDGE_AUTH_TOKEN</key>
+        <string>d48df9dc2bb10f477a47f11588fff8d073ec191ece54ba9ce8d3fedeceecc9a8</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/monty/Library/Logs/roon-key.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/monty/Library/Logs/roon-key.log</string>
+</dict>
+</plist>
