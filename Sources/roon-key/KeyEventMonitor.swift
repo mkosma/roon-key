@@ -3,11 +3,15 @@ import CoreGraphics
 
 /// KeyEventMonitor: intercepts media keys and F13-F19.
 ///
-/// Uses a CGEventTap (raw type 14 = NSEventTypeSystemDefined) for media keys,
-/// and NSEvent.addGlobalMonitorForEvents for F13-F19 keyDown events.
-/// Requires Accessibility permission (System Settings > Privacy & Security).
+/// Uses two CGEventTaps at `.cghidEventTap` (raw HID level so the system
+/// hasn't yet handled the events):
+///   - systemDefined tap for media keys (mute, vol+/-, play/pause, next/prev)
+///   - keyDown tap for F13-F19 preset keys
 ///
-/// At-home detection: the tap callback reads a non-isolated Bool flag
+/// Both taps return nil to consume the event when routed; otherwise pass it
+/// through unchanged. Requires Accessibility permission.
+///
+/// At-home detection: the tap callbacks read a non-isolated Bool flag
 /// (atHomeFlag) which is updated from the main actor via NetworkProfile.
 @MainActor
 public class KeyEventMonitor {
@@ -16,13 +20,14 @@ public class KeyEventMonitor {
     let networkProfile: NetworkProfile
     let keyRouter: KeyRouter
 
-    // Thread-safe flag readable from the non-isolated CGEventTap callback.
+    // Thread-safe flag readable from the non-isolated CGEventTap callbacks.
     // Updated on main actor but read safely from any thread (Bool is atomic on arm64).
     nonisolated(unsafe) var atHomeFlag: Bool = false
 
-    private var functionMonitor: Any?
     private var consumerTap: CFMachPort?
     private var consumerRunLoopSource: CFRunLoopSource?
+    private var functionTap: CFMachPort?
+    private var functionRunLoopSource: CFRunLoopSource?
 
     public init(bridgeClient: RoonBridgeClient, networkProfile: NetworkProfile) {
         self.bridgeClient = bridgeClient
@@ -31,7 +36,6 @@ public class KeyEventMonitor {
     }
 
     public func start() {
-        // Sync initial at-home state
         atHomeFlag = networkProfile.isAtHome
 
         networkProfile.onStatusChange = { [weak self] isAtHome in
@@ -39,22 +43,23 @@ public class KeyEventMonitor {
         }
 
         setupConsumerKeyTap()
-        setupFunctionKeyMonitor()
+        setupFunctionKeyTap()
     }
 
     public func stop() {
-        if let monitor = functionMonitor {
-            NSEvent.removeMonitor(monitor)
-            functionMonitor = nil
-        }
-        if let tap = consumerTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-            if let source = consumerRunLoopSource {
-                CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+        teardownTap(&consumerTap, &consumerRunLoopSource)
+        teardownTap(&functionTap, &functionRunLoopSource)
+    }
+
+    private func teardownTap(_ tap: inout CFMachPort?, _ source: inout CFRunLoopSource?) {
+        if let t = tap {
+            CGEvent.tapEnable(tap: t, enable: false)
+            if let s = source {
+                CFRunLoopRemoveSource(CFRunLoopGetMain(), s, .commonModes)
             }
-            consumerTap = nil
-            consumerRunLoopSource = nil
         }
+        tap = nil
+        source = nil
     }
 
     // -------------------------------------------------------------------------
@@ -68,7 +73,7 @@ public class KeyEventMonitor {
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
         guard let tap = CGEvent.tapCreate(
-            tap: .cgAnnotatedSessionEventTap,
+            tap: .cghidEventTap,
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: eventMask,
@@ -76,7 +81,6 @@ public class KeyEventMonitor {
             userInfo: selfPtr
         ) else {
             NSLog("[KeyEventMonitor] Could not create consumer key tap -- is Accessibility permission granted?")
-            setupConsumerKeyMonitorFallback()
             return
         }
 
@@ -85,35 +89,35 @@ public class KeyEventMonitor {
         self.consumerRunLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        NSLog("[KeyEventMonitor] Consumer key tap installed")
-    }
-
-    private func setupConsumerKeyMonitorFallback() {
-        NSEvent.addGlobalMonitorForEvents(matching: [.systemDefined]) { [weak self] event in
-            guard let self, self.atHomeFlag else { return }
-            guard event.subtype.rawValue == 8 else { return }
-            let data1 = Int64(event.data1)
-            guard let (key, isDown) = ConsumerKey.from(data1: data1), isDown else { return }
-            let flags = event.modifierFlags.toCGEventFlags
-            if !flags.contains(.maskShift) {
-                self.keyRouter.routeConsumerKey(key, modifiers: flags)
-            }
-        }
+        NSLog("[KeyEventMonitor] Consumer key tap installed at cghidEventTap")
     }
 
     // -------------------------------------------------------------------------
-    // F13-F19 via NSEvent global monitor
+    // Function key tap (F13-F19 -> presets)
     // -------------------------------------------------------------------------
 
-    private func setupFunctionKeyMonitor() {
-        functionMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-            guard let self, self.atHomeFlag else { return }
-            let keyCode = Int(event.keyCode)
-            guard KeyRouter.presetIndexForKeyCode(keyCode) != nil else { return }
-            let flags = event.modifierFlags.toCGEventFlags
-            if flags.contains(.maskShift) { return }
-            self.keyRouter.routeFunctionKey(keyCode, modifiers: flags)
+    private func setupFunctionKeyTap() {
+        let eventMask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
+
+        guard let tap = CGEvent.tapCreate(
+            tap: .cghidEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: eventMask,
+            callback: functionKeyTapCallback,
+            userInfo: selfPtr
+        ) else {
+            NSLog("[KeyEventMonitor] Could not create function key tap -- is Accessibility permission granted?")
+            return
         }
+
+        self.functionTap = tap
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        self.functionRunLoopSource = source
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        NSLog("[KeyEventMonitor] Function key tap installed at cghidEventTap")
     }
 }
 
@@ -128,31 +132,36 @@ private func consumerKeyTapCallback(
     refcon: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
     guard let refcon else { return Unmanaged.passRetained(event) }
-
     let monitor = Unmanaged<KeyEventMonitor>.fromOpaque(refcon).takeUnretainedValue()
 
-    // kCGMouseEventSubtype (field 7) holds subtype for system-defined events.
-    // Subtype 8 = NX_SUBTYPE_AUX_MOUSE_BUTTONS = consumer/media keys.
+    // Re-enable the tap if the system disabled it (timeout/user input).
+    if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+        if let tap = monitor.consumerTap {
+            CGEvent.tapEnable(tap: tap, enable: true)
+            NSLog("[KeyEventMonitor] consumer tap re-enabled after \(type.rawValue)")
+        }
+        return Unmanaged.passRetained(event)
+    }
+
+    // kCGMouseEventSubtype (field 7) carries subtype for system-defined events.
+    // Subtype 8 = NX_SUBTYPE_AUX_CONTROL_BUTTONS = consumer/media keys.
     guard let subtypeField = CGEventField(rawValue: 7) else { return Unmanaged.passRetained(event) }
     let subtype = event.getIntegerValueField(subtypeField)
-    NSLog("[KeyEventMonitor] consumer tap fired, subtype=\(subtype)")
     guard subtype == 8 else { return Unmanaged.passRetained(event) }
 
-    // Read non-isolated flag (thread-safe on arm64)
     guard monitor.atHomeFlag else {
-        NSLog("[KeyEventMonitor] not at home, passing through")
+        NSLog("[KeyEventMonitor] consumer event arrived but not at home")
         return Unmanaged.passRetained(event)
     }
 
-    // Wrap CGEvent as NSEvent to access data1 (NX consumer key fields)
     guard let nsEvent = NSEvent(cgEvent: event) else { return Unmanaged.passRetained(event) }
-
     let data1 = Int64(nsEvent.data1)
     let keyCode = (data1 & 0xFFFF0000) >> 16
-    NSLog("[KeyEventMonitor] subtype=8 data1=\(data1) keyCode=\(keyCode)")
-    guard let (key, isDown) = ConsumerKey.from(data1: data1), isDown else {
+    guard let (key, isDown) = ConsumerKey.from(data1: data1) else {
+        NSLog("[KeyEventMonitor] unmapped consumer keyCode=\(keyCode)")
         return Unmanaged.passRetained(event)
     }
+    guard isDown else { return nil } // also consume key-up so the system doesn't act
 
     NSLog("[KeyEventMonitor] routing consumer key: \(key)")
     let flags = event.flags
@@ -161,8 +170,51 @@ private func consumerKeyTapCallback(
         monitor.keyRouter.routeConsumerKey(key, modifiers: flags)
     }
 
-    // Consume the event (return nil so system doesn't also handle it)
-    return nil
+    return nil // consume
+}
+
+// -------------------------------------------------------------------------
+// CGEventTap callback for F13-F19 keyDown
+// -------------------------------------------------------------------------
+
+private func functionKeyTapCallback(
+    proxy: CGEventTapProxy,
+    type: CGEventType,
+    event: CGEvent,
+    refcon: UnsafeMutableRawPointer?
+) -> Unmanaged<CGEvent>? {
+    guard let refcon else { return Unmanaged.passRetained(event) }
+    let monitor = Unmanaged<KeyEventMonitor>.fromOpaque(refcon).takeUnretainedValue()
+
+    if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+        if let tap = monitor.functionTap {
+            CGEvent.tapEnable(tap: tap, enable: true)
+            NSLog("[KeyEventMonitor] function tap re-enabled after \(type.rawValue)")
+        }
+        return Unmanaged.passRetained(event)
+    }
+
+    guard type == .keyDown else { return Unmanaged.passRetained(event) }
+
+    let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
+    guard KeyRouter.presetIndexForKeyCode(keyCode) != nil else {
+        return Unmanaged.passRetained(event) // not one of ours
+    }
+
+    let flags = event.flags
+    if flags.contains(.maskShift) { return Unmanaged.passRetained(event) }
+
+    guard monitor.atHomeFlag else {
+        NSLog("[KeyEventMonitor] F-key arrived but not at home")
+        return Unmanaged.passRetained(event)
+    }
+
+    NSLog("[KeyEventMonitor] routing F-key: \(keyCode)")
+    DispatchQueue.main.async {
+        monitor.keyRouter.routeFunctionKey(keyCode, modifiers: flags)
+    }
+
+    return nil // consume so the foreground app doesn't also receive F13...
 }
 
 // -------------------------------------------------------------------------
