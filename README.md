@@ -120,6 +120,29 @@ roon-key replaces that approach entirely.
 - Full MUSE settings integration
 - Smart playlist / favorites browse
 - Now Playing notification center widget
+- Notch escape / occlusion handling. On notched MacBooks (mbp 14"/16"), once
+  enough menubar items pile up to the left of the clock, the notch can hide
+  Rondo's status item entirely. macOS does not wrap to the left of the notch
+  by default; items past the notch are simply occluded. Options to explore:
+  (a) a global keystroke that opens the popover programmatically without
+  needing to click the status item; (b) detect occlusion and surface a
+  fallback (panel anchored to the screen edge, or a transient HUD).
+  Reference: https://tailscale.com/blog/macos-notch-escape — they observe
+  occlusion via `NSWindow.didChangeOcclusionStateNotification` on the
+  status item button's window:
+
+  ```swift
+  self.visibilityObserver = NotificationCenter.default.addObserver(
+      forName: NSWindow.didChangeOcclusionStateNotification,
+      object: statusItemButton.window,
+      queue: .main
+  ) { [weak self] _ in
+      guard let self, statusItem.isVisible else { return }
+      isIconOccluded = statusItem.button?.window?.occlusionState.contains(.visible) == false
+  }
+  ```
+
+  Low priority since Rondo is only useful at home today.
 
 ## License
 
