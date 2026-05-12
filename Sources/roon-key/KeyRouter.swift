@@ -142,12 +142,12 @@ public enum ConsumerKey {
 
         let key: ConsumerKey
         switch keyCode {
-        case 0x00:  key = .volumeUp
-        case 0x01:  key = .volumeDown
-        case 0x02:  key = .mute
-        case 0x10:  key = .playPause
-        case 0x11:  key = .nextTrack
-        case 0x12:  key = .prevTrack
+        case 0x00:  key = .volumeUp     // NX_KEYTYPE_SOUND_UP
+        case 0x01:  key = .volumeDown   // NX_KEYTYPE_SOUND_DOWN
+        case 0x07:  key = .mute         // NX_KEYTYPE_MUTE (was incorrectly 0x02 = brightness up)
+        case 0x10:  key = .playPause    // NX_KEYTYPE_PLAY
+        case 0x11:  key = .nextTrack    // NX_KEYTYPE_NEXT
+        case 0x12:  key = .prevTrack    // NX_KEYTYPE_PREVIOUS
         default:    return nil
         }
         return (key: key, isDown: isDown)

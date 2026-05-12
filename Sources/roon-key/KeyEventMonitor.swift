@@ -135,19 +135,26 @@ private func consumerKeyTapCallback(
     // Subtype 8 = NX_SUBTYPE_AUX_MOUSE_BUTTONS = consumer/media keys.
     guard let subtypeField = CGEventField(rawValue: 7) else { return Unmanaged.passRetained(event) }
     let subtype = event.getIntegerValueField(subtypeField)
+    NSLog("[KeyEventMonitor] consumer tap fired, subtype=\(subtype)")
     guard subtype == 8 else { return Unmanaged.passRetained(event) }
 
     // Read non-isolated flag (thread-safe on arm64)
-    guard monitor.atHomeFlag else { return Unmanaged.passRetained(event) }
+    guard monitor.atHomeFlag else {
+        NSLog("[KeyEventMonitor] not at home, passing through")
+        return Unmanaged.passRetained(event)
+    }
 
     // Wrap CGEvent as NSEvent to access data1 (NX consumer key fields)
     guard let nsEvent = NSEvent(cgEvent: event) else { return Unmanaged.passRetained(event) }
 
     let data1 = Int64(nsEvent.data1)
+    let keyCode = (data1 & 0xFFFF0000) >> 16
+    NSLog("[KeyEventMonitor] subtype=8 data1=\(data1) keyCode=\(keyCode)")
     guard let (key, isDown) = ConsumerKey.from(data1: data1), isDown else {
         return Unmanaged.passRetained(event)
     }
 
+    NSLog("[KeyEventMonitor] routing consumer key: \(key)")
     let flags = event.flags
 
     DispatchQueue.main.async {
