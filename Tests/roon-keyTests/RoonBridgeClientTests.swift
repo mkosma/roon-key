@@ -272,8 +272,27 @@ class MockURLProtocol: URLProtocol {
             return
         }
 
+        // URLSession moves the body from httpBody to httpBodyStream before the
+        // request reaches the URLProtocol, so tests that inspect httpBody see
+        // nil unless we drain the stream and put the bytes back.
+        var captured = request
+        if captured.httpBody == nil, let stream = captured.httpBodyStream {
+            stream.open()
+            defer { stream.close() }
+            var data = Data()
+            let bufferSize = 4096
+            let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+            defer { buffer.deallocate() }
+            while stream.hasBytesAvailable {
+                let read = stream.read(buffer, maxLength: bufferSize)
+                if read <= 0 { break }
+                data.append(buffer, count: read)
+            }
+            captured.httpBody = data
+        }
+
         do {
-            let (response, data) = try handler(request)
+            let (response, data) = try handler(captured)
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client?.urlProtocol(self, didLoad: data)
             client?.urlProtocolDidFinishLoading(self)
