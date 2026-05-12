@@ -66,7 +66,7 @@ public class KeyRouter {
                     try await bridgeClient.transport(action: .prev)
                 }
             } catch {
-                print("[KeyRouter] Bridge call failed: \(error.localizedDescription)")
+                NSLog("[KeyRouter] Bridge call failed: \(error.localizedDescription)")
             }
         }
 
@@ -93,7 +93,7 @@ public class KeyRouter {
             do {
                 try await bridgeClient.volumePreset(index: index, instant: isCtrl)
             } catch {
-                print("[KeyRouter] Preset call failed: \(error.localizedDescription)")
+                NSLog("[KeyRouter] Preset call failed: \(error.localizedDescription)")
             }
         }
 

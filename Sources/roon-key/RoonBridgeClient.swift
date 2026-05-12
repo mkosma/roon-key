@@ -28,7 +28,7 @@ public class RoonBridgeClient {
     public func setEndpoint(_ endpoint: BridgeDiscovery.Endpoint) {
         if let url = endpoint.baseURL {
             self.baseURL = url
-            print("[RoonBridgeClient] Endpoint: \(url)")
+            NSLog("[RoonBridgeClient] Endpoint: \(url)")
         }
     }
 

@@ -92,7 +92,7 @@ public class BridgeDiscovery {
 
         browser.stateUpdateHandler = { state in
             if case let .failed(error) = state {
-                print("[BridgeDiscovery] mDNS browser error: \(error)")
+                NSLog("[BridgeDiscovery] mDNS browser error: \(error)")
             }
         }
 
@@ -130,7 +130,7 @@ public class BridgeDiscovery {
                         didResume = true
                         continuation.resume()
                     } else if case let .failed(error) = state {
-                        print("[BridgeDiscovery] Resolve connection failed: \(error)")
+                        NSLog("[BridgeDiscovery] Resolve connection failed: \(error)")
                         connection.cancel()
                         didResume = true
                         continuation.resume()
@@ -163,7 +163,7 @@ public class BridgeDiscovery {
             guard let self, !self.resolved else { return }
             self.resolved = true
             let endpoint = Endpoint(host: Self.fallbackHost, port: Self.fallbackPort)
-            print("[BridgeDiscovery] mDNS timeout, falling back to \(Self.fallbackHost):\(Self.fallbackPort)")
+            NSLog("[BridgeDiscovery] mDNS timeout, falling back to \(Self.fallbackHost):\(Self.fallbackPort)")
             self.onEndpointResolved?(endpoint)
         }
     }

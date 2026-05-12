@@ -75,7 +75,7 @@ public class KeyEventMonitor {
             callback: consumerKeyTapCallback,
             userInfo: selfPtr
         ) else {
-            print("[KeyEventMonitor] Could not create consumer key tap -- is Accessibility permission granted?")
+            NSLog("[KeyEventMonitor] Could not create consumer key tap -- is Accessibility permission granted?")
             setupConsumerKeyMonitorFallback()
             return
         }
@@ -85,6 +85,7 @@ public class KeyEventMonitor {
         self.consumerRunLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        NSLog("[KeyEventMonitor] Consumer key tap installed")
     }
 
     private func setupConsumerKeyMonitorFallback() {
