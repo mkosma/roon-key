@@ -24,10 +24,14 @@ public class KeyEventMonitor {
     // Updated on main actor but read safely from any thread (Bool is atomic on arm64).
     nonisolated(unsafe) var atHomeFlag: Bool = false
 
-    fileprivate var consumerTap: CFMachPort?
-    fileprivate var consumerRunLoopSource: CFRunLoopSource?
-    fileprivate var functionTap: CFMachPort?
-    fileprivate var functionRunLoopSource: CFRunLoopSource?
+    // Tap handles are written from the MainActor (setup/stop) and read from
+    // the non-isolated CGEventTap callbacks when the OS disables a tap.
+    // The reads/writes don't race: setup completes before any callback can
+    // fire, and stop() runs at terminate after all callbacks have drained.
+    nonisolated(unsafe) fileprivate var consumerTap: CFMachPort?
+    nonisolated(unsafe) fileprivate var consumerRunLoopSource: CFRunLoopSource?
+    nonisolated(unsafe) fileprivate var functionTap: CFMachPort?
+    nonisolated(unsafe) fileprivate var functionRunLoopSource: CFRunLoopSource?
 
     public init(bridgeClient: RoonBridgeClient, networkProfile: NetworkProfile) {
         self.bridgeClient = bridgeClient
