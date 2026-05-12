@@ -74,7 +74,6 @@ public class MenubarController: NSObject {
             popover.performClose(sender)
         } else {
             let pop = NSPopover()
-            pop.contentSize = NSSize(width: 380, height: 560)
             pop.behavior = .transient
             pop.contentViewController = NSHostingController(
                 rootView: SettingsView(
@@ -94,17 +93,28 @@ public class MenubarController: NSObject {
     private func updateTitle(isAtHome: Bool) {
         guard let button = statusItem?.button else { return }
 
-        let dot: String
+        let dotColor: NSColor
         if !isAtHome {
-            dot = "○"
-        } else if statusModel.roonConnected {
-            dot = "●"
+            dotColor = NSColor.tertiaryLabelColor
+        } else if !statusModel.roonConnected {
+            dotColor = NSColor.systemYellow
+        } else if statusModel.zoneState == "playing" {
+            dotColor = NSColor.systemPurple
         } else {
-            dot = "◐"
+            dotColor = NSColor.systemGreen
         }
 
         let volume = statusModel.volume.map { "\($0)" } ?? "--"
-        button.title = " \(volume) \(dot)"
+        let attr = NSMutableAttributedString()
+        attr.append(NSAttributedString(
+            string: " \(volume)  ",
+            attributes: [.foregroundColor: NSColor.labelColor]
+        ))
+        attr.append(NSAttributedString(
+            string: "●",
+            attributes: [.foregroundColor: dotColor]
+        ))
+        button.attributedTitle = attr
     }
 
     // -------------------------------------------------------------------------
@@ -123,6 +133,9 @@ public class MenubarController: NSObject {
                     statusModel.zones = s.zones ?? []
                     statusModel.nowPlayingTitle = s.zone?.nowPlayingTitle
                     statusModel.nowPlayingArtist = s.zone?.nowPlayingArtist
+                    let activeName = s.zone?.displayName
+                    statusModel.zoneState = (s.zones ?? [])
+                        .first { $0.displayName == activeName }?.state
                     if let cfg = s.config {
                         statusModel.config = cfg
                     }
@@ -153,6 +166,7 @@ public class StatusModel: ObservableObject {
     @Published var isSavingConfig = false
     @Published var nowPlayingTitle: String? = nil
     @Published var nowPlayingArtist: String? = nil
+    @Published var zoneState: String? = nil
 }
 
 // -------------------------------------------------------------------------
@@ -199,14 +213,15 @@ struct SettingsView: View {
             Divider().background(RoonStyle.hairline)
             presetRow
                 .padding(.horizontal, 20)
-                .padding(.vertical, 16)
-            Spacer(minLength: 0)
+                .padding(.top, 14)
+                .padding(.bottom, 10)
             Divider().background(RoonStyle.hairline)
             footer
                 .padding(.horizontal, 20)
-                .padding(.vertical, 12)
+                .padding(.vertical, 10)
         }
-        .frame(width: 380, height: 560)
+        .frame(width: 380)
+        .fixedSize(horizontal: false, vertical: true)
         .background(RoonStyle.bg)
         .preferredColorScheme(.dark)
         .background(
@@ -238,9 +253,13 @@ struct SettingsView: View {
 
     private var toolbar: some View {
         HStack(spacing: 14) {
+            Text("Rondo")
+                .font(.system(size: 18, weight: .semibold, design: .serif))
+                .foregroundColor(RoonStyle.textPrimary)
+                .tracking(0.5)
             Spacer()
-            toolbarIcon("info.circle") { showAbout = true }
-            toolbarIcon("gearshape") { showEdit = true }
+            toolbarIcon("info.circle") { showAbout.toggle() }
+            toolbarIcon("gearshape") { showEdit.toggle() }
             toolbarIcon("power") { NSApp.terminate(nil) }
         }
         .padding(.horizontal, 16)
@@ -261,25 +280,40 @@ struct SettingsView: View {
     // ---- Now playing ----
 
     private var nowPlaying: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let title = model.nowPlayingTitle, !title.isEmpty {
-                Text(title)
-                    .font(.system(.title2, design: .serif))
-                    .foregroundColor(RoonStyle.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Text(model.nowPlayingArtist ?? "")
-                    .font(.system(size: 13))
-                    .foregroundColor(RoonStyle.textSecondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            } else {
-                Text("Not playing")
-                    .font(.system(.title2, design: .serif))
-                    .foregroundColor(RoonStyle.textTertiary)
-                Text(" ")
-                    .font(.system(size: 13))
-            }
+        let state = model.zoneState ?? ""
+        let title = model.nowPlayingTitle ?? ""
+        let artist = model.nowPlayingArtist ?? ""
+        let displayTitle: String
+        let displaySubtitle: String
+        let dim: Bool
+        if !title.isEmpty {
+            displayTitle = title
+            displaySubtitle = artist
+            dim = false
+        } else if state == "playing" {
+            displayTitle = "Playing"
+            displaySubtitle = model.zoneName ?? ""
+            dim = false
+        } else if state == "paused" {
+            displayTitle = "Paused"
+            displaySubtitle = model.zoneName ?? ""
+            dim = true
+        } else {
+            displayTitle = "Not playing"
+            displaySubtitle = ""
+            dim = true
+        }
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(displayTitle)
+                .font(.system(.title2, design: .serif))
+                .foregroundColor(dim ? RoonStyle.textTertiary : RoonStyle.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Text(displaySubtitle.isEmpty ? " " : displaySubtitle)
+                .font(.system(size: 13))
+                .foregroundColor(RoonStyle.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -287,11 +321,12 @@ struct SettingsView: View {
     // ---- Transport ----
 
     private var transportRow: some View {
-        HStack(spacing: 36) {
+        let isPlaying = model.zoneState == "playing"
+        return HStack(spacing: 36) {
             transportButton(symbol: "backward.fill", size: 18, accent: false) {
                 Task { try? await bridgeClient.transport(action: .prev) }
             }
-            transportButton(symbol: "playpause.fill", size: 24, accent: true) {
+            transportButton(symbol: isPlaying ? "pause.fill" : "play.fill", size: 22, accent: true) {
                 Task { try? await bridgeClient.transport(action: .playpause) }
             }
             transportButton(symbol: "forward.fill", size: 18, accent: false) {
@@ -314,6 +349,7 @@ struct SettingsView: View {
                     .font(.system(size: size, weight: .medium))
                     .foregroundColor(accent ? .white : RoonStyle.textPrimary)
             }
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
     }
@@ -330,33 +366,30 @@ struct SettingsView: View {
                 Task { try? await bridgeClient.volumeInstant(direction: .down, step: 1) }
             }
             Spacer()
-            VStack(spacing: 2) {
+            ZStack {
                 Text(model.volume.map(String.init) ?? "--")
-                    .font(.system(.largeTitle, design: .serif))
-                    .foregroundColor(RoonStyle.textPrimary)
+                    .font(.system(size: 38, weight: .light))
+                    .foregroundColor(model.muted ? RoonStyle.textSecondary : RoonStyle.textPrimary)
                     .monospacedDigit()
                 if model.muted {
-                    Text("muted")
+                    Text("MUTED")
                         .font(.system(size: 9, weight: .semibold))
-                        .tracking(0.8)
+                        .tracking(1.2)
                         .foregroundColor(RoonStyle.accent)
-                        .padding(.horizontal, 8)
+                        .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .overlay(
                             Capsule().stroke(RoonStyle.accent.opacity(0.6), lineWidth: 1)
                         )
-                } else {
-                    Text(" ")
-                        .font(.system(size: 9))
+                        .offset(y: 26)
                 }
             }
-            .frame(minWidth: 90)
+            .frame(width: 96, height: 56)
             Spacer()
             volIconButton(symbol: "plus") {
                 Task { try? await bridgeClient.volumeInstant(direction: .up, step: 1) }
             }
             Spacer()
-            // Spacer to balance the mute button on the left.
             Color.clear.frame(width: 36, height: 36)
         }
         .padding(.horizontal, 24)
@@ -366,12 +399,14 @@ struct SettingsView: View {
         Button(action: action) {
             ZStack {
                 Circle()
-                    .stroke(RoonStyle.hairline, lineWidth: 1)
+                    .fill(RoonStyle.bgElevated)
+                    .overlay(Circle().stroke(RoonStyle.hairline, lineWidth: 1))
                     .frame(width: 36, height: 36)
                 Image(systemName: symbol)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(RoonStyle.textPrimary)
             }
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
     }
@@ -379,19 +414,17 @@ struct SettingsView: View {
     // ---- Presets ----
 
     private var presetRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                ForEach(Array(model.config.presets.enumerated()), id: \.offset) { idx, value in
+        HStack(spacing: 6) {
+            ForEach(Array(model.config.presets.enumerated()), id: \.offset) { idx, value in
+                VStack(spacing: 4) {
                     presetPill(value: value, active: model.volume == value) {
                         Task { try? await bridgeClient.volumePreset(index: idx + 1, instant: false) }
                     }
+                    Text("F\(13 + idx)")
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundColor(RoonStyle.textTertiary)
                 }
             }
-            Text("F13 to F19")
-                .font(.system(size: 9, weight: .medium))
-                .tracking(1.2)
-                .foregroundColor(RoonStyle.textTertiary)
-                .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 
@@ -479,13 +512,13 @@ private struct AboutSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("roon-key")
+                Text("Rondo")
                     .font(.system(.largeTitle, design: .serif))
                     .foregroundColor(RoonStyle.textPrimary)
-                Text("by Monty Kosma")
+                Text("a menubar remote for Roon")
                     .font(.system(size: 13))
                     .foregroundColor(RoonStyle.textSecondary)
-                Text("(c) 2026")
+                Text("(c) 2026 Monty Kosma")
                     .font(.system(size: 11))
                     .foregroundColor(RoonStyle.textTertiary)
             }
@@ -563,27 +596,32 @@ private struct EditSheet: View {
                 sectionLabel("Volume presets")
                 HStack(spacing: 6) {
                     ForEach(0..<7, id: \.self) { i in
-                        TextField("", value: Binding(
-                            get: { presetEdits.indices.contains(i) ? presetEdits[i] : 0 },
-                            set: { newVal in
-                                ensureSize()
-                                presetEdits[i] = max(0, min(100, newVal))
-                            }
-                        ), format: .number)
-                        .textFieldStyle(.plain)
-                        .multilineTextAlignment(.center)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundColor(RoonStyle.textPrimary)
-                        .frame(width: 44, height: 32)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(RoonStyle.bgElevated)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(RoonStyle.hairline, lineWidth: 1)
-                        )
+                        VStack(spacing: 4) {
+                            TextField("", value: Binding(
+                                get: { presetEdits.indices.contains(i) ? presetEdits[i] : 0 },
+                                set: { newVal in
+                                    ensureSize()
+                                    presetEdits[i] = max(0, min(100, newVal))
+                                }
+                            ), format: .number)
+                            .textFieldStyle(.plain)
+                            .multilineTextAlignment(.center)
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundColor(RoonStyle.textPrimary)
+                            .frame(width: 44, height: 32)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(RoonStyle.bgElevated)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(RoonStyle.hairline, lineWidth: 1)
+                            )
+                            Text("F\(13 + i)")
+                                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                .foregroundColor(RoonStyle.textTertiary)
+                        }
                     }
                 }
             }
@@ -592,9 +630,10 @@ private struct EditSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel("Even distribution")
                 HStack(spacing: 10) {
+                    Spacer()
                     numField(label: "Min", value: $evenMin)
                     numField(label: "Max", value: $evenMax)
-                    Button("Apply even spacing", action: applyEvenSpacing)
+                    Button("Apply", action: applyEvenSpacing)
                         .controlSize(.small)
                 }
             }
@@ -603,7 +642,7 @@ private struct EditSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel("Ramp speed")
                 HStack(spacing: 12) {
-                    Slider(value: $rampSecondsPerUnit, in: 0.005...0.5)
+                    Slider(value: $rampSecondsPerUnit, in: 0.005...0.5, step: 0.005)
                     TextField("", value: $rampSecondsPerUnit, format: .number.precision(.fractionLength(3)))
                         .textFieldStyle(.plain)
                         .multilineTextAlignment(.center)
