@@ -207,12 +207,16 @@ public struct ZoneStatus: Codable {
     public let volume: Int?
     public let muted: Bool
     public let outputs: [OutputStatus]
+    public let nowPlayingTitle: String?
+    public let nowPlayingArtist: String?
 
     enum CodingKeys: String, CodingKey {
         case displayName = "display_name"
         case volume
         case muted
         case outputs
+        case nowPlayingTitle = "now_playing_title"
+        case nowPlayingArtist = "now_playing_artist"
     }
 }
 

@@ -10,8 +10,8 @@ import CoreGraphics
 /// Modifier semantics:
 /// - F10/F11/F12 (reached via fn on a MacBook keyboard):
 ///     - F10            : mute toggle (instant)
-///     - F11            : volume down (instant, single step)
-///     - F12            : volume up   (instant, single step)
+///     - F11            : volume down (instant, -1)
+///     - F12            : volume up   (instant, +1)
 /// - F13-F19 (presets):
 ///     - No modifier    : preset (ramp)
 ///     - Fn modifier    : preset (instant jump)
@@ -45,9 +45,9 @@ public class KeyRouter {
                     case .mute:
                         try await bridgeClient.muteToggle()
                     case .down:
-                        try await bridgeClient.volumeInstant(direction: .down)
+                        try await bridgeClient.volumeInstant(direction: .down, step: 1)
                     case .up:
-                        try await bridgeClient.volumeInstant(direction: .up)
+                        try await bridgeClient.volumeInstant(direction: .up, step: 1)
                     }
                 } catch {
                     NSLog("[KeyRouter] Volume call failed: \(error.localizedDescription)")
