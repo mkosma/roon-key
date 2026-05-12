@@ -31,8 +31,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.networkProfile = profile
         profile.start()
 
-        // Build bridge client (updated when discovery finds an endpoint)
-        let client = RoonBridgeClient()
+        // Build bridge client (updated when discovery finds an endpoint).
+        // BRIDGE_AUTH_TOKEN comes from the LaunchAgent plist EnvironmentVariables,
+        // mirroring how roon-bridge itself reads its copy of the same secret.
+        let token = ProcessInfo.processInfo.environment["BRIDGE_AUTH_TOKEN"]
+        if token == nil || token?.isEmpty == true {
+            NSLog("[roon-key] BRIDGE_AUTH_TOKEN not set; bridge will reject /control and /config requests with 401")
+        }
+        let client = RoonBridgeClient(authToken: token)
         discovery.onEndpointResolved = { endpoint in
             Task { @MainActor in
                 client.setEndpoint(endpoint)

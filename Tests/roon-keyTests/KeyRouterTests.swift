@@ -6,6 +6,7 @@ import CoreGraphics
 ///
 /// RoonBridgeClient is not called here -- we verify the static routing
 /// decisions and keycode mapping only.
+@MainActor
 final class KeyRouterTests: XCTestCase {
 
     // -------------------------------------------------------------------------

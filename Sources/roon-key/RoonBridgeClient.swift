@@ -12,15 +12,17 @@ public class RoonBridgeClient {
 
     private var baseURL: URL
     private let session: URLSession
+    private let authToken: String?
     private let timeoutInterval: TimeInterval = 3.0
 
     // -------------------------------------------------------------------------
     // Initialisation
     // -------------------------------------------------------------------------
 
-    public init(session: URLSession = .shared) {
+    public init(session: URLSession = .shared, authToken: String? = nil) {
         self.baseURL = URL(string: "http://mini.local:3100")!
         self.session = session
+        self.authToken = authToken
     }
 
     public func setEndpoint(_ endpoint: BridgeDiscovery.Endpoint) {
@@ -70,6 +72,7 @@ public class RoonBridgeClient {
         let url = baseURL.appendingPathComponent("control/status")
         var request = URLRequest(url: url, timeoutInterval: timeoutInterval)
         request.httpMethod = "GET"
+        addAuth(&request)
 
         let (data, response) = try await session.data(for: request)
         try validateHTTPResponse(response, data: data)
@@ -86,6 +89,7 @@ public class RoonBridgeClient {
         let url = baseURL.appendingPathComponent("config/roon-key")
         var request = URLRequest(url: url, timeoutInterval: timeoutInterval)
         request.httpMethod = "GET"
+        addAuth(&request)
 
         let (data, response) = try await session.data(for: request)
         try validateHTTPResponse(response, data: data)
@@ -99,6 +103,7 @@ public class RoonBridgeClient {
         var request = URLRequest(url: url, timeoutInterval: timeoutInterval)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        addAuth(&request)
         request.httpBody = try JSONEncoder().encode(config)
 
         let (data, response) = try await session.data(for: request)
@@ -122,10 +127,16 @@ public class RoonBridgeClient {
         var request = URLRequest(url: url, timeoutInterval: timeoutInterval)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        addAuth(&request)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await session.data(for: request)
         try validateHTTPResponse(response, data: data)
+    }
+
+    private func addAuth(_ request: inout URLRequest) {
+        guard let authToken, !authToken.isEmpty else { return }
+        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
     }
 
     private func validateHTTPResponse(_ response: URLResponse, data: Data) throws {

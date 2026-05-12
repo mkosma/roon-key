@@ -24,7 +24,8 @@ public class MenubarController: NSObject {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.title = "roon"
         item.button?.target = self
-        item.button?.action = #selector(togglePopover(_:))
+        item.button?.action = #selector(handleClick(_:))
+        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         self.statusItem = item
 
         networkProfile.onStatusChange = { [weak self] isAtHome in
@@ -35,6 +36,34 @@ public class MenubarController: NSObject {
         startPolling()
     }
 
+    @objc private func handleClick(_ sender: Any?) {
+        let event = NSApp.currentEvent
+        if event?.type == .rightMouseUp {
+            showContextMenu()
+        } else {
+            togglePopover(sender)
+        }
+    }
+
+    private func showContextMenu() {
+        guard let item = statusItem else { return }
+        let menu = NSMenu()
+        let quitItem = NSMenuItem(
+            title: "Quit roon-key",
+            action: #selector(quit(_:)),
+            keyEquivalent: "q"
+        )
+        quitItem.target = self
+        menu.addItem(quitItem)
+        item.menu = menu
+        item.button?.performClick(nil)
+        item.menu = nil
+    }
+
+    @objc fileprivate func quit(_ sender: Any?) {
+        NSApp.terminate(nil)
+    }
+
     @objc private func togglePopover(_ sender: Any?) {
         guard let button = statusItem?.button else { return }
 
@@ -42,7 +71,7 @@ public class MenubarController: NSObject {
             popover.performClose(sender)
         } else {
             let pop = NSPopover()
-            pop.contentSize = NSSize(width: 320, height: 460)
+            pop.contentSize = NSSize(width: 320, height: 500)
             pop.behavior = .transient
             pop.contentViewController = NSHostingController(
                 rootView: SettingsView(
@@ -261,6 +290,16 @@ struct SettingsView: View {
                         Text("Volume: \(vol)\(model.muted ? " (muted)" : "")")
                             .font(.caption).foregroundColor(.secondary)
                     }
+                }
+
+                Divider()
+
+                HStack {
+                    Spacer()
+                    Button("Quit roon-key") {
+                        NSApp.terminate(nil)
+                    }
+                    .buttonStyle(.bordered)
                 }
                 .padding(.bottom, 12)
             }
