@@ -36,7 +36,7 @@ Open a new terminal so the export takes effect.
 
 ```sh
 launchctl unload ~/Library/LaunchAgents/com.roon-key.plist
-./scripts/make-app.sh --install
+./scripts/make-app.sh
 launchctl load ~/Library/LaunchAgents/com.roon-key.plist
 ```
 
