@@ -158,6 +158,13 @@ private func consumerKeyTapCallback(
         return Unmanaged.passRetained(event)
     }
 
+    // Shift is the "send to Roon" trigger for consumer keys. Without shift,
+    // let the Mac handle the key locally (system volume, mute, etc.).
+    let flags = event.flags
+    guard flags.contains(.maskShift) else {
+        return Unmanaged.passRetained(event)
+    }
+
     guard let nsEvent = NSEvent(cgEvent: event) else { return Unmanaged.passRetained(event) }
     let data1 = Int64(nsEvent.data1)
     let keyCode = (data1 & 0xFFFF0000) >> 16
@@ -168,7 +175,6 @@ private func consumerKeyTapCallback(
     guard isDown else { return nil } // also consume key-up so the system doesn't act
 
     NSLog("[KeyEventMonitor] routing consumer key: \(key)")
-    let flags = event.flags
 
     DispatchQueue.main.async {
         monitor.keyRouter.routeConsumerKey(key, modifiers: flags)

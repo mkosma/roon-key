@@ -8,9 +8,14 @@ import CoreGraphics
 /// event pass through.
 ///
 /// Modifier semantics:
-/// - No modifier        : ramp/preset variant (smooth)
-/// - Ctrl (controlKey)  : instant variant (single API call)
-/// - Shift (shiftKey)   : pass through (system handles it)
+/// - Consumer keys (mute, vol+/-, play/pause, next, prev):
+///     - Shift          : route to Roon (ramp variant for volume)
+///     - Shift + Ctrl   : route to Roon (instant variant for volume)
+///     - No shift       : not intercepted; Mac handles locally
+/// - Function keys (F13-F19):
+///     - No modifier    : preset (smooth)
+///     - Ctrl           : preset (instant)
+///     - Shift          : pass through
 ///
 /// All routing goes through roon-bridge over HTTP.
 /// No direct Roon Core connection from mbp.
@@ -28,13 +33,10 @@ public class KeyRouter {
     // -------------------------------------------------------------------------
 
     /// Returns true if the key was consumed (bridge call issued), false to pass through.
+    /// Caller has already gated on shift; ctrl selects instant vs ramp.
     @discardableResult
     public func routeConsumerKey(_ key: ConsumerKey, modifiers: CGEventFlags) -> Bool {
-        let isShift = modifiers.contains(.maskShift)
         let isCtrl = modifiers.contains(.maskControl)
-
-        // Shift = pass through to system
-        if isShift { return false }
 
         Task {
             do {
