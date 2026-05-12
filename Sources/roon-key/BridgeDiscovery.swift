@@ -120,7 +120,6 @@ public class BridgeDiscovery {
                     if case .ready = state {
                         if let innerEndpoint = connection.currentPath?.remoteEndpoint,
                            case let .hostPort(host, port) = innerEndpoint {
-                            didResume = true
                             self.resolved = true
                             self.fallbackTask?.cancel()
                             self.browser?.cancel()
@@ -128,22 +127,22 @@ public class BridgeDiscovery {
                             self.onEndpointResolved?(resolved)
                         }
                         connection.cancel()
-                        if !didResume { continuation.resume() }
+                        didResume = true
+                        continuation.resume()
                     } else if case let .failed(error) = state {
                         print("[BridgeDiscovery] Resolve connection failed: \(error)")
                         connection.cancel()
-                        if !didResume {
-                            didResume = true
-                            continuation.resume()
-                        }
+                        didResume = true
+                        continuation.resume()
                     }
                 }
             }
 
             connection.start(queue: .main)
 
-            // Timeout after 2s per resolve attempt
-            Task {
+            // Timeout after 2s per resolve attempt. Run on MainActor so
+            // didResume is read/written from a single isolation domain.
+            Task { @MainActor in
                 try? await Task.sleep(for: .seconds(2))
                 if !didResume {
                     didResume = true
