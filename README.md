@@ -62,15 +62,15 @@ permission and does not behave correctly under `LSUIElement`. Use the wrapper
 script to build a real `.app`:
 
 ```
-scripts/make-app.sh                # release build, output to ./build/roon-key.app
-scripts/make-app.sh --debug        # debug build
-scripts/make-app.sh --install      # also copy to /Applications
-scripts/make-app.sh --run          # also launch
+scripts/make-app.sh                # release build, installs to /Applications
+scripts/make-app.sh --debug        # debug build, installs to /Applications
+scripts/make-app.sh --run          # also launch after install
 ```
 
 The script runs `swift build -c release`, assembles `Contents/{MacOS,Info.plist}`,
-injects `CFBundleExecutable` and `CFBundlePackageType`, and ad-hoc codesigns the
-result so TCC has a stable identity for the Accessibility grant.
+injects `CFBundleExecutable` and `CFBundlePackageType`, codesigns, and copies
+the result to `/Applications/roon-key.app`. See `scripts/README-signing.md`
+to make the Accessibility grant persist across rebuilds.
 
 ### Note: mini cannot build this
 

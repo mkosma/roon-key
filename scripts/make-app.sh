@@ -7,28 +7,22 @@
 # around the binary and the Info.plist that ships in Sources/.
 #
 # Usage:
-#   scripts/make-app.sh                  # release build, output to build/
-#   scripts/make-app.sh --debug          # debug build
-#   scripts/make-app.sh --output ~/Apps  # custom output dir
-#   scripts/make-app.sh --install        # also copy to /Applications
-#   scripts/make-app.sh --run            # also launch after build
+#   scripts/make-app.sh                  # release build, installs to /Applications
+#   scripts/make-app.sh --debug          # debug build, installs to /Applications
+#   scripts/make-app.sh --run            # also launch after install
 
 set -euo pipefail
 
 CONFIG="release"
-OUTPUT_DIR=""
-INSTALL=0
 RUN=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --debug) CONFIG="debug"; shift ;;
         --release) CONFIG="release"; shift ;;
-        --output) OUTPUT_DIR="$2"; shift 2 ;;
-        --install) INSTALL=1; shift ;;
         --run) RUN=1; shift ;;
         -h|--help)
-            sed -n '2,18p' "$0"
+            sed -n '2,16p' "$0"
             exit 0
             ;;
         *) echo "Unknown arg: $1" >&2; exit 2 ;;
@@ -38,9 +32,7 @@ done
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-if [[ -z "$OUTPUT_DIR" ]]; then
-    OUTPUT_DIR="$REPO_ROOT/build"
-fi
+OUTPUT_DIR="$REPO_ROOT/build"
 mkdir -p "$OUTPUT_DIR"
 
 APP_NAME="roon-key"
@@ -91,13 +83,11 @@ codesign --force --deep --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
 
 echo "==> built $APP_BUNDLE"
 
-if [[ $INSTALL -eq 1 ]]; then
-    DEST="/Applications/${APP_NAME}.app"
-    echo "==> installing to $DEST"
-    rm -rf "$DEST"
-    cp -R "$APP_BUNDLE" "$DEST"
-    APP_BUNDLE="$DEST"
-fi
+DEST="/Applications/${APP_NAME}.app"
+echo "==> installing to $DEST"
+rm -rf "$DEST"
+cp -R "$APP_BUNDLE" "$DEST"
+APP_BUNDLE="$DEST"
 
 if [[ $RUN -eq 1 ]]; then
     echo "==> open $APP_BUNDLE"
