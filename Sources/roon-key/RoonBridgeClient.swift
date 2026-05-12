@@ -204,19 +204,23 @@ public struct BridgeStatus: Codable {
 
 public struct ZoneStatus: Codable {
     public let displayName: String
+    public let state: String?
     public let volume: Int?
     public let muted: Bool
     public let outputs: [OutputStatus]
     public let nowPlayingTitle: String?
     public let nowPlayingArtist: String?
+    public let nowPlayingAlbum: String?
 
     enum CodingKeys: String, CodingKey {
         case displayName = "display_name"
+        case state
         case volume
         case muted
         case outputs
         case nowPlayingTitle = "now_playing_title"
         case nowPlayingArtist = "now_playing_artist"
+        case nowPlayingAlbum = "now_playing_album"
     }
 }
 

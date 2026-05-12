@@ -1,4 +1,5 @@
 import AppKit
+import CoreText
 
 /// AppDelegate: lifecycle, accessibility permission check, menubar setup.
 ///
@@ -17,6 +18,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Suppress dock icon at runtime
         NSApp.setActivationPolicy(.accessory)
+
+        registerBundledFonts()
 
         // Check and request Accessibility permission
         checkAccessibility()
@@ -63,6 +66,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         keyEventMonitor?.stop()
         bridgeDiscovery?.stop()
         networkProfile?.stop()
+    }
+
+    // -------------------------------------------------------------------------
+    // Font registration
+    // -------------------------------------------------------------------------
+
+    private func registerBundledFonts() {
+        let bundle = Bundle.module
+        let extensions = ["ttf", "otf"]
+        var urls: [URL] = []
+        for ext in extensions {
+            urls.append(contentsOf: bundle.urls(forResourcesWithExtension: ext, subdirectory: nil) ?? [])
+        }
+        for url in urls {
+            var error: Unmanaged<CFError>?
+            if !CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error) {
+                if let err = error?.takeRetainedValue() {
+                    NSLog("[roon-key] font register failed \(url.lastPathComponent): \(err)")
+                }
+            }
+        }
     }
 
     // -------------------------------------------------------------------------

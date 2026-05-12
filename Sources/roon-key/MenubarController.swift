@@ -26,8 +26,10 @@ public class MenubarController: NSObject {
         item.button?.action = #selector(handleClick(_:))
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         item.button?.imagePosition = .imageLeading
-        if let logo = NSImage(systemSymbolName: "circle.lefthalf.filled", accessibilityDescription: "roon") {
-            logo.isTemplate = true
+        if let url = Bundle.module.url(forResource: "MenubarIcon", withExtension: "png"),
+           let logo = NSImage(contentsOf: url) {
+            logo.size = NSSize(width: 18, height: 18)
+            logo.isTemplate = false
             item.button?.image = logo
         }
         self.statusItem = item
@@ -75,12 +77,21 @@ public class MenubarController: NSObject {
         } else {
             let pop = NSPopover()
             pop.behavior = .transient
-            pop.contentViewController = NSHostingController(
+            let host = NSHostingController(
                 rootView: SettingsView(
                     model: statusModel,
                     bridgeClient: bridgeClient
                 )
             )
+            // Force a layout before showing so NSPopover doesn't anchor
+            // at (0,0) and end up at the top of the screen.
+            host.view.layoutSubtreeIfNeeded()
+            let fitted = host.view.fittingSize
+            pop.contentSize = NSSize(
+                width: max(fitted.width, 380),
+                height: max(fitted.height, 480)
+            )
+            pop.contentViewController = host
             pop.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             self.popover = pop
         }
@@ -93,17 +104,20 @@ public class MenubarController: NSObject {
     private func updateTitle(isAtHome: Bool) {
         guard let button = statusItem?.button else { return }
 
-        let dotColor: NSColor
+        let indicatorColor: NSColor
         if !isAtHome {
-            dotColor = NSColor.tertiaryLabelColor
+            indicatorColor = NSColor.tertiaryLabelColor
         } else if !statusModel.roonConnected {
-            dotColor = NSColor.systemYellow
-        } else if statusModel.zoneState == "playing" {
-            dotColor = NSColor.systemPurple
+            // Bridge reachable but Roon Core not connected to bridge.
+            indicatorColor = NSColor.systemYellow
+        } else if statusModel.lastStatusError {
+            // Bridge unreachable.
+            indicatorColor = NSColor.systemRed
         } else {
-            dotColor = NSColor.systemGreen
+            indicatorColor = NSColor.systemGreen
         }
 
+        let glyph = statusModel.zoneState == "playing" ? "\u{25B6}" : "\u{23F8}"
         let volume = statusModel.volume.map { "\($0)" } ?? "--"
         let attr = NSMutableAttributedString()
         attr.append(NSAttributedString(
@@ -111,8 +125,11 @@ public class MenubarController: NSObject {
             attributes: [.foregroundColor: NSColor.labelColor]
         ))
         attr.append(NSAttributedString(
-            string: "●",
-            attributes: [.foregroundColor: dotColor]
+            string: glyph,
+            attributes: [
+                .foregroundColor: indicatorColor,
+                .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+            ]
         ))
         button.attributedTitle = attr
     }
@@ -126,6 +143,7 @@ public class MenubarController: NSObject {
             while true {
                 do {
                     let s = try await bridgeClient.status()
+                    statusModel.lastStatusError = false
                     statusModel.roonConnected = s.roonConnected
                     statusModel.zoneName = s.zone?.displayName
                     statusModel.volume = s.zone?.volume
@@ -133,14 +151,16 @@ public class MenubarController: NSObject {
                     statusModel.zones = s.zones ?? []
                     statusModel.nowPlayingTitle = s.zone?.nowPlayingTitle
                     statusModel.nowPlayingArtist = s.zone?.nowPlayingArtist
+                    statusModel.nowPlayingAlbum = s.zone?.nowPlayingAlbum
                     let activeName = s.zone?.displayName
-                    statusModel.zoneState = (s.zones ?? [])
-                        .first { $0.displayName == activeName }?.state
+                    statusModel.zoneState = s.zone?.state
+                        ?? (s.zones ?? []).first { $0.displayName == activeName }?.state
                     if let cfg = s.config {
                         statusModel.config = cfg
                     }
                     updateTitle(isAtHome: networkProfile.isAtHome)
                 } catch {
+                    statusModel.lastStatusError = true
                     statusModel.roonConnected = false
                     updateTitle(isAtHome: networkProfile.isAtHome)
                 }
@@ -166,7 +186,9 @@ public class StatusModel: ObservableObject {
     @Published var isSavingConfig = false
     @Published var nowPlayingTitle: String? = nil
     @Published var nowPlayingArtist: String? = nil
+    @Published var nowPlayingAlbum: String? = nil
     @Published var zoneState: String? = nil
+    @Published var lastStatusError: Bool = false
 }
 
 // -------------------------------------------------------------------------
@@ -183,6 +205,21 @@ private enum RoonStyle {
     static let hairline = Color.white.opacity(0.08)
     static let okDot = Color(red: 0.30, green: 0.85, blue: 0.55)
     static let warnDot = Color(red: 0.95, green: 0.78, blue: 0.30)
+
+    // Roon ships these fonts inside the desktop app; we bundle the same files.
+    // Display = Grifo (transitional serif). Body / UI = Lato (humanist sans).
+    static func display(_ size: CGFloat) -> Font {
+        Font.custom("GrifoS-Medium", size: size)
+    }
+    static func body(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        let name: String
+        switch weight {
+        case .bold, .heavy, .black: name = "Lato-Bold"
+        case .semibold, .medium: name = "Lato-Medium"
+        default: name = "Lato-Regular"
+        }
+        return Font.custom(name, size: size)
+    }
 }
 
 // -------------------------------------------------------------------------
@@ -254,7 +291,7 @@ struct SettingsView: View {
     private var toolbar: some View {
         HStack(spacing: 14) {
             Text("Rondo")
-                .font(.system(size: 18, weight: .semibold, design: .serif))
+                .font(RoonStyle.display(20))
                 .foregroundColor(RoonStyle.textPrimary)
                 .tracking(0.5)
             Spacer()
@@ -305,12 +342,12 @@ struct SettingsView: View {
         }
         return VStack(alignment: .leading, spacing: 6) {
             Text(displayTitle)
-                .font(.system(.title2, design: .serif))
+                .font(RoonStyle.display(20))
                 .foregroundColor(dim ? RoonStyle.textTertiary : RoonStyle.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.tail)
             Text(displaySubtitle.isEmpty ? " " : displaySubtitle)
-                .font(.system(size: 13))
+                .font(RoonStyle.body(13))
                 .foregroundColor(RoonStyle.textSecondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -368,7 +405,7 @@ struct SettingsView: View {
             Spacer()
             ZStack {
                 Text(model.volume.map(String.init) ?? "--")
-                    .font(.system(size: 38, weight: .light))
+                    .font(RoonStyle.body(38))
                     .foregroundColor(model.muted ? RoonStyle.textSecondary : RoonStyle.textPrimary)
                     .monospacedDigit()
                 if model.muted {
@@ -513,10 +550,10 @@ private struct AboutSheet: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Rondo")
-                    .font(.system(.largeTitle, design: .serif))
+                    .font(RoonStyle.display(34))
                     .foregroundColor(RoonStyle.textPrimary)
                 Text("a menubar remote for Roon")
-                    .font(.system(size: 13))
+                    .font(RoonStyle.body(13))
                     .foregroundColor(RoonStyle.textSecondary)
                 Text("(c) 2026 Monty Kosma")
                     .font(.system(size: 11))
@@ -588,7 +625,7 @@ private struct EditSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Edit Presets & Ramp")
-                .font(.system(.title3, design: .serif))
+                .font(RoonStyle.display(20))
                 .foregroundColor(RoonStyle.textPrimary)
 
             // Presets row

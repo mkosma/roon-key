@@ -55,6 +55,14 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 cp "$BIN_PATH" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 cp "$REPO_ROOT/Sources/roon-key/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 
+# Copy SPM-generated resource bundle (fonts, menubar icon).
+RES_BUNDLE="$REPO_ROOT/.build/$CONFIG/roon-key_roon-key.bundle"
+if [[ -d "$RES_BUNDLE" ]]; then
+    cp -R "$RES_BUNDLE" "$APP_BUNDLE/Contents/Resources/"
+else
+    echo "WARNING: resource bundle not found at $RES_BUNDLE" >&2
+fi
+
 # CFBundleExecutable must match the binary name in MacOS/. The shipped
 # Info.plist omits it, so inject it here using PlistBuddy.
 /usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string $APP_NAME" \

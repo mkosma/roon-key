@@ -20,6 +20,9 @@ let package = Package(
                 // When building with Xcode, add it to the target's Info.plist setting.
                 "Info.plist",
             ],
+            resources: [
+                .process("Resources"),
+            ],
             swiftSettings: [
                 .define("DEBUG", .when(configuration: .debug)),
             ]
