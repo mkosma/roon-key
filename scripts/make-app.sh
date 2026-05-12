@@ -74,9 +74,20 @@ cp "$REPO_ROOT/Sources/roon-key/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundleInfoDictionaryVersion string 6.0" \
     "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
 
-# Ad-hoc sign so Accessibility/TCC has a stable code identity.
-echo "==> codesign --sign - (ad-hoc)"
-codesign --force --deep --sign - "$APP_BUNDLE"
+# Sign the bundle. Prefer a stable self-signed identity (set
+# ROON_KEY_SIGN_IDENTITY in your shell rc to the name of a code-signing
+# cert in your login keychain). Ad-hoc is a fallback but will re-trigger
+# the TCC/Accessibility prompt on every rebuild because the cdhash
+# changes. With a named identity, TCC keys on the cert's designated
+# requirement and the grant persists across rebuilds.
+SIGN_IDENTITY="${ROON_KEY_SIGN_IDENTITY:--}"
+if [[ "$SIGN_IDENTITY" == "-" ]]; then
+    echo "==> codesign --sign - (ad-hoc; TCC will re-prompt on every rebuild)"
+    echo "    To make Accessibility grants stick, see scripts/README-signing.md"
+else
+    echo "==> codesign --sign \"$SIGN_IDENTITY\""
+fi
+codesign --force --deep --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
 
 echo "==> built $APP_BUNDLE"
 
