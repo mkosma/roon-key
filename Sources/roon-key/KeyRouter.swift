@@ -8,14 +8,16 @@ import CoreGraphics
 /// event pass through.
 ///
 /// Modifier semantics:
-/// - Consumer keys (mute, vol+/-, play/pause, next, prev):
-///     - Shift          : route to Roon (ramp variant for volume)
-///     - Shift + Ctrl   : route to Roon (instant variant for volume)
-///     - No shift       : not intercepted; Mac handles locally
-/// - Function keys (F13-F19):
+/// - F10/F11/F12 (reached via fn on a MacBook keyboard):
+///     - F10            : mute toggle (instant)
+///     - F11            : volume down (instant, single step)
+///     - F12            : volume up   (instant, single step)
+/// - F13-F19 (presets):
 ///     - No modifier    : preset (ramp)
-///     - Shift          : preset (instant jump)
-///     - Ctrl           : pass through
+///     - Fn modifier    : preset (instant jump)
+/// - Consumer keys (bare mute, vol+/-, etc.) are NOT intercepted; macOS
+///   handles them locally. `mediaremoted` claims them before any public
+///   CGEventTap can see them on macOS 13+. Use fn+F10/F11/F12 instead.
 ///
 /// All routing goes through roon-bridge over HTTP.
 /// No direct Roon Core connection from mbp.
@@ -29,78 +31,60 @@ public class KeyRouter {
     }
 
     // -------------------------------------------------------------------------
-    // Route a consumer key event (volume up/down/mute, play/pause, next, prev)
-    // -------------------------------------------------------------------------
-
-    /// Returns true if the key was consumed (bridge call issued), false to pass through.
-    /// Caller has already gated on shift; ctrl selects instant vs ramp.
-    @discardableResult
-    public func routeConsumerKey(_ key: ConsumerKey, modifiers: CGEventFlags) -> Bool {
-        let isCtrl = modifiers.contains(.maskControl)
-
-        Task {
-            do {
-                switch key {
-                case .volumeUp:
-                    if isCtrl {
-                        try await bridgeClient.volumeInstant(direction: .up)
-                    } else {
-                        try await bridgeClient.volumeRamp(direction: .up)
-                    }
-
-                case .volumeDown:
-                    if isCtrl {
-                        try await bridgeClient.volumeInstant(direction: .down)
-                    } else {
-                        try await bridgeClient.volumeRamp(direction: .down)
-                    }
-
-                case .mute:
-                    try await bridgeClient.muteToggle()
-
-                case .playPause:
-                    try await bridgeClient.transport(action: .playpause)
-
-                case .nextTrack:
-                    try await bridgeClient.transport(action: .next)
-
-                case .prevTrack:
-                    try await bridgeClient.transport(action: .prev)
-                }
-            } catch {
-                NSLog("[KeyRouter] Bridge call failed: \(error.localizedDescription)")
-            }
-        }
-
-        return true
-    }
-
-    // -------------------------------------------------------------------------
-    // Route a function key (F13-F19 -> presets 1-7)
+    // Route an F10-F19 keyDown event
     // -------------------------------------------------------------------------
 
     /// Returns true if the key was consumed, false to pass through.
     @discardableResult
     public func routeFunctionKey(_ keyCode: Int, modifiers: CGEventFlags) -> Bool {
-        let isShift = modifiers.contains(.maskShift)
-        let isCtrl = modifiers.contains(.maskControl)
+        // F10/F11/F12 are volume controls (reached via fn on a MacBook).
+        if let volumeAction = Self.volumeActionForKeyCode(keyCode) {
+            Task {
+                do {
+                    switch volumeAction {
+                    case .mute:
+                        try await bridgeClient.muteToggle()
+                    case .down:
+                        try await bridgeClient.volumeInstant(direction: .down)
+                    case .up:
+                        try await bridgeClient.volumeInstant(direction: .up)
+                    }
+                } catch {
+                    NSLog("[KeyRouter] Volume call failed: \(error.localizedDescription)")
+                }
+            }
+            return true
+        }
 
-        // Ctrl = pass through to system
-        if isCtrl { return false }
-
-        // F13=keycode 105, F14=107, F15=113, F16=106, F17=64, F18=79, F19=80
-        let presetIndex = Self.presetIndexForKeyCode(keyCode)
-        guard let index = presetIndex else { return false }
+        // F13-F19 are presets. Fn modifier selects instant jump.
+        guard let index = Self.presetIndexForKeyCode(keyCode) else { return false }
+        let isFn = modifiers.contains(.maskSecondaryFn)
 
         Task {
             do {
-                try await bridgeClient.volumePreset(index: index, instant: isShift)
+                try await bridgeClient.volumePreset(index: index, instant: isFn)
             } catch {
                 NSLog("[KeyRouter] Preset call failed: \(error.localizedDescription)")
             }
         }
 
         return true
+    }
+
+    private enum VolumeAction { case mute, down, up }
+
+    private nonisolated static func volumeActionForKeyCode(_ keyCode: Int) -> VolumeAction? {
+        switch keyCode {
+        case 109: return .mute  // F10
+        case 103: return .down  // F11
+        case 111: return .up    // F12
+        default:  return nil
+        }
+    }
+
+    /// True if this keycode is one roon-key routes (F10-F12 or F13-F19).
+    public nonisolated static func handlesKeyCode(_ keyCode: Int) -> Bool {
+        volumeActionForKeyCode(keyCode) != nil || presetIndexForKeyCode(keyCode) != nil
     }
 
     // -------------------------------------------------------------------------
@@ -124,35 +108,3 @@ public class KeyRouter {
     }
 }
 
-// -------------------------------------------------------------------------
-// ConsumerKey enum
-// -------------------------------------------------------------------------
-
-/// Consumer (media) key identifiers from IOKit HID subtype 8 events.
-public enum ConsumerKey {
-    case volumeUp
-    case volumeDown
-    case mute
-    case playPause
-    case nextTrack
-    case prevTrack
-
-    /// Parse from the NX subtype 8 event's data1 field.
-    /// data1 layout: bits 16-31 = key code, bits 8-15 = event type (0x0A = key-down).
-    public static func from(data1: Int64) -> (key: ConsumerKey, isDown: Bool)? {
-        let keyCode = (data1 & 0xFFFF0000) >> 16
-        let isDown = (data1 & 0xFF00) >> 8 == 0x0A
-
-        let key: ConsumerKey
-        switch keyCode {
-        case 0x00:  key = .volumeUp     // NX_KEYTYPE_SOUND_UP
-        case 0x01:  key = .volumeDown   // NX_KEYTYPE_SOUND_DOWN
-        case 0x07:  key = .mute         // NX_KEYTYPE_MUTE (was incorrectly 0x02 = brightness up)
-        case 0x10:  key = .playPause    // NX_KEYTYPE_PLAY
-        case 0x11:  key = .nextTrack    // NX_KEYTYPE_NEXT
-        case 0x12:  key = .prevTrack    // NX_KEYTYPE_PREVIOUS
-        default:    return nil
-        }
-        return (key: key, isDown: isDown)
-    }
-}

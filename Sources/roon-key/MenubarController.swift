@@ -128,7 +128,7 @@ public class MenubarController: NSObject {
                     updateTitle(isAtHome: networkProfile.isAtHome)
                 }
 
-                try? await Task.sleep(for: .seconds(5))
+                try? await Task.sleep(for: .seconds(1))
             }
         }
     }
