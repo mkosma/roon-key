@@ -106,7 +106,7 @@ public class KeyRouter {
 
     /// Maps F13-F19 keycodes to preset indices 1-7.
     /// Returns nil if the keycode is not a mapped function key.
-    public static func presetIndexForKeyCode(_ keyCode: Int) -> Int? {
+    public nonisolated static func presetIndexForKeyCode(_ keyCode: Int) -> Int? {
         // F13=105, F14=107, F15=113, F16=106, F17=64, F18=79, F19=80
         let mapping: [Int: Int] = [
             105: 1, // F13

@@ -24,10 +24,10 @@ public class KeyEventMonitor {
     // Updated on main actor but read safely from any thread (Bool is atomic on arm64).
     nonisolated(unsafe) var atHomeFlag: Bool = false
 
-    private var consumerTap: CFMachPort?
-    private var consumerRunLoopSource: CFRunLoopSource?
-    private var functionTap: CFMachPort?
-    private var functionRunLoopSource: CFRunLoopSource?
+    fileprivate var consumerTap: CFMachPort?
+    fileprivate var consumerRunLoopSource: CFRunLoopSource?
+    fileprivate var functionTap: CFMachPort?
+    fileprivate var functionRunLoopSource: CFRunLoopSource?
 
     public init(bridgeClient: RoonBridgeClient, networkProfile: NetworkProfile) {
         self.bridgeClient = bridgeClient
