@@ -13,9 +13,9 @@ import CoreGraphics
 ///     - Shift + Ctrl   : route to Roon (instant variant for volume)
 ///     - No shift       : not intercepted; Mac handles locally
 /// - Function keys (F13-F19):
-///     - No modifier    : preset (smooth)
-///     - Ctrl           : preset (instant)
-///     - Shift          : pass through
+///     - No modifier    : preset (ramp)
+///     - Shift          : preset (instant jump)
+///     - Ctrl           : pass through
 ///
 /// All routing goes through roon-bridge over HTTP.
 /// No direct Roon Core connection from mbp.
@@ -85,7 +85,8 @@ public class KeyRouter {
         let isShift = modifiers.contains(.maskShift)
         let isCtrl = modifiers.contains(.maskControl)
 
-        if isShift { return false }
+        // Ctrl = pass through to system
+        if isCtrl { return false }
 
         // F13=keycode 105, F14=107, F15=113, F16=106, F17=64, F18=79, F19=80
         let presetIndex = Self.presetIndexForKeyCode(keyCode)
@@ -93,7 +94,7 @@ public class KeyRouter {
 
         Task {
             do {
-                try await bridgeClient.volumePreset(index: index, instant: isCtrl)
+                try await bridgeClient.volumePreset(index: index, instant: isShift)
             } catch {
                 NSLog("[KeyRouter] Preset call failed: \(error.localizedDescription)")
             }

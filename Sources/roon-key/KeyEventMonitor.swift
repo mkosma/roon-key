@@ -161,6 +161,7 @@ private func consumerKeyTapCallback(
     // Shift is the "send to Roon" trigger for consumer keys. Without shift,
     // let the Mac handle the key locally (system volume, mute, etc.).
     let flags = event.flags
+    NSLog("[KeyEventMonitor] consumer event flags=0x\(String(flags.rawValue, radix: 16)) shift=\(flags.contains(.maskShift)) ctrl=\(flags.contains(.maskControl))")
     guard flags.contains(.maskShift) else {
         return Unmanaged.passRetained(event)
     }
@@ -212,14 +213,15 @@ private func functionKeyTapCallback(
     }
 
     let flags = event.flags
-    if flags.contains(.maskShift) { return Unmanaged.passRetained(event) }
+    // Ctrl = pass through (so user can still send F-keys to focused apps).
+    if flags.contains(.maskControl) { return Unmanaged.passRetained(event) }
 
     guard monitor.atHomeFlag else {
         NSLog("[KeyEventMonitor] F-key arrived but not at home")
         return Unmanaged.passRetained(event)
     }
 
-    NSLog("[KeyEventMonitor] routing F-key: \(keyCode)")
+    NSLog("[KeyEventMonitor] routing F-key: \(keyCode) shift=\(flags.contains(.maskShift))")
     DispatchQueue.main.async {
         monitor.keyRouter.routeFunctionKey(keyCode, modifiers: flags)
     }
