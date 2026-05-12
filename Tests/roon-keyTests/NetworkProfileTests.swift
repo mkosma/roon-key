@@ -4,6 +4,7 @@ import Network
 
 /// Tests for NetworkProfile.evaluate(interfaces:) using simulated interface lists.
 /// No real NWPathMonitor is started; we test the pure classification logic.
+@MainActor
 final class NetworkProfileTests: XCTestCase {
 
     // -------------------------------------------------------------------------
