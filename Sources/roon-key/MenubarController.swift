@@ -20,6 +20,21 @@ public class MenubarController: NSObject {
         self.networkProfile = networkProfile
     }
 
+    /// Draw the source icon on top of an opaque white circle so it reads on
+    /// dark / light desktops alike. The icon's transparent area would otherwise
+    /// blend into the wallpaper and look muddy.
+    static func compositeOnWhiteDisc(_ src: NSImage, size: CGFloat) -> NSImage {
+        let result = NSImage(size: NSSize(width: size, height: size))
+        result.lockFocus()
+        NSColor.white.setFill()
+        NSBezierPath(ovalIn: NSRect(x: 0, y: 0, width: size, height: size)).fill()
+        let inset = size * 0.12
+        let rect = NSRect(x: inset, y: inset, width: size - 2 * inset, height: size - 2 * inset)
+        src.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0)
+        result.unlockFocus()
+        return result
+    }
+
     public func setup() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.target = self
@@ -28,9 +43,9 @@ public class MenubarController: NSObject {
         item.button?.imagePosition = .imageLeading
         if let url = Bundle.module.url(forResource: "MenubarIcon", withExtension: "png"),
            let logo = NSImage(contentsOf: url) {
-            logo.size = NSSize(width: 18, height: 18)
-            logo.isTemplate = false
-            item.button?.image = logo
+            let composited = Self.compositeOnWhiteDisc(logo, size: 18)
+            composited.isTemplate = false
+            item.button?.image = composited
         }
         self.statusItem = item
 
@@ -47,6 +62,7 @@ public class MenubarController: NSObject {
             showContextMenu()
         } else {
             togglePopover(sender)
+            refreshNow()
         }
     }
 
@@ -77,19 +93,17 @@ public class MenubarController: NSObject {
         } else {
             let pop = NSPopover()
             pop.behavior = .transient
+            // Pre-size the popover. SwiftUI's .frame(width: 380) + .fixedSize
+            // sizes the host view, but only after first layout. Setting
+            // contentSize before assigning the view controller prevents the
+            // NSPopover from anchoring on a zero-sized rect (which would
+            // place the arrow far from the menubar button).
+            pop.contentSize = NSSize(width: 380, height: 580)
             let host = NSHostingController(
                 rootView: SettingsView(
                     model: statusModel,
                     bridgeClient: bridgeClient
                 )
-            )
-            // Force a layout before showing so NSPopover doesn't anchor
-            // at (0,0) and end up at the top of the screen.
-            host.view.layoutSubtreeIfNeeded()
-            let fitted = host.view.fittingSize
-            pop.contentSize = NSSize(
-                width: max(fitted.width, 380),
-                height: max(fitted.height, 480)
             )
             pop.contentViewController = host
             pop.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
@@ -138,37 +152,83 @@ public class MenubarController: NSObject {
     // Polling
     // -------------------------------------------------------------------------
 
-    private func startPolling() {
-        Task {
-            while true {
-                do {
-                    let s = try await bridgeClient.status()
-                    statusModel.lastStatusError = false
-                    statusModel.roonConnected = s.roonConnected
-                    statusModel.zoneName = s.zone?.displayName
-                    statusModel.volume = s.zone?.volume
-                    statusModel.muted = s.zone?.muted ?? false
-                    statusModel.zones = s.zones ?? []
-                    statusModel.nowPlayingTitle = s.zone?.nowPlayingTitle
-                    statusModel.nowPlayingArtist = s.zone?.nowPlayingArtist
-                    statusModel.nowPlayingAlbum = s.zone?.nowPlayingAlbum
-                    let activeName = s.zone?.displayName
-                    statusModel.zoneState = s.zone?.state
-                        ?? (s.zones ?? []).first { $0.displayName == activeName }?.state
-                    if let cfg = s.config {
-                        statusModel.config = cfg
-                    }
-                    updateTitle(isAtHome: networkProfile.isAtHome)
-                } catch {
-                    statusModel.lastStatusError = true
-                    statusModel.roonConnected = false
-                    updateTitle(isAtHome: networkProfile.isAtHome)
-                }
+    private var fastPollUntil: Date = .distantPast
 
-                try? await Task.sleep(for: .seconds(1))
+    private func startPolling() {
+        // Refresh immediately whenever a control action fires (keypress
+        // or popover button) so the displayed volume / state catches up.
+        NotificationCenter.default.addObserver(
+            forName: .roonKeyDidAct,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.refreshNow() }
+        }
+        // During a ramp the volume keeps changing for ~1-2s. Bump the
+        // poll cadence so the menubar number tracks the ramp.
+        NotificationCenter.default.addObserver(
+            forName: .roonKeyDidRamp,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.fastPollUntil = Date().addingTimeInterval(2.5)
+                self?.refreshNow()
+            }
+        }
+
+        Task {
+            while !Task.isCancelled {
+                await pollOnce()
+                let interval: Duration = Date() < fastPollUntil
+                    ? .milliseconds(150)
+                    : .seconds(1)
+                try? await Task.sleep(for: interval)
             }
         }
     }
+
+    func refreshNow() {
+        Task { await pollOnce() }
+    }
+
+    private func pollOnce() async {
+        do {
+            let s = try await bridgeClient.status()
+            statusModel.lastStatusError = false
+            statusModel.roonConnected = s.roonConnected
+            statusModel.zoneName = s.zone?.displayName
+            statusModel.volume = s.zone?.volume
+            statusModel.muted = s.zone?.muted ?? false
+            statusModel.zones = s.zones ?? []
+            statusModel.nowPlayingTitle = s.zone?.nowPlayingTitle
+            statusModel.nowPlayingArtist = s.zone?.nowPlayingArtist
+            statusModel.nowPlayingAlbum = s.zone?.nowPlayingAlbum
+            let activeName = s.zone?.displayName
+            statusModel.zoneState = s.zone?.state
+                ?? (s.zones ?? []).first { $0.displayName == activeName }?.state
+            if let cfg = s.config {
+                statusModel.config = cfg
+            }
+            updateTitle(isAtHome: networkProfile.isAtHome)
+        } catch {
+            statusModel.lastStatusError = true
+            statusModel.roonConnected = false
+            updateTitle(isAtHome: networkProfile.isAtHome)
+        }
+    }
+}
+
+// -------------------------------------------------------------------------
+// Cross-component refresh signals
+// -------------------------------------------------------------------------
+
+extension Notification.Name {
+    /// Posted whenever a control action completes (keypress or in-popover
+    /// button). Triggers an immediate menubar status refresh.
+    static let roonKeyDidAct = Notification.Name("roonKeyDidAct")
+    /// Posted when a ramping action is initiated. Triggers burst polling.
+    static let roonKeyDidRamp = Notification.Name("roonKeyDidRamp")
 }
 
 // -------------------------------------------------------------------------
@@ -394,42 +454,45 @@ struct SettingsView: View {
     // ---- Volume ----
 
     private var volumeRow: some View {
-        HStack(spacing: 0) {
-            volIconButton(symbol: model.muted ? "speaker.slash.fill" : "speaker.wave.2.fill") {
-                Task { try? await bridgeClient.muteToggle() }
-            }
-            Spacer()
-            volIconButton(symbol: "minus") {
-                Task { try? await bridgeClient.volumeInstant(direction: .down, step: 1) }
-            }
-            Spacer()
-            ZStack {
-                Text(model.volume.map(String.init) ?? "--")
-                    .font(RoonStyle.body(38))
-                    .foregroundColor(model.muted ? RoonStyle.textSecondary : RoonStyle.textPrimary)
-                    .monospacedDigit()
-                if model.muted {
+        // ZStack centers the [minus, number+MUTED, plus] cluster geometrically
+        // in the row; mute hangs off to the left without disturbing center.
+        ZStack {
+            HStack(spacing: 22) {
+                volIconButton(symbol: "minus") {
+                    Task { try? await bridgeClient.volumeInstant(direction: .down, step: 1) }
+                }
+                VStack(spacing: 6) {
+                    Text(model.volume.map(String.init) ?? "--")
+                        .font(RoonStyle.body(38))
+                        .foregroundColor(model.muted ? RoonStyle.textSecondary : RoonStyle.textPrimary)
+                        .monospacedDigit()
                     Text("MUTED")
                         .font(.system(size: 9, weight: .semibold))
                         .tracking(1.2)
-                        .foregroundColor(RoonStyle.accent)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        .foregroundColor(model.muted ? RoonStyle.accent : .clear)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
                         .overlay(
-                            Capsule().stroke(RoonStyle.accent.opacity(0.6), lineWidth: 1)
+                            Capsule().stroke(
+                                model.muted ? RoonStyle.accent.opacity(0.6) : .clear,
+                                lineWidth: 1
+                            )
                         )
-                        .offset(y: 26)
+                }
+                .frame(width: 96)
+                volIconButton(symbol: "plus") {
+                    Task { try? await bridgeClient.volumeInstant(direction: .up, step: 1) }
                 }
             }
-            .frame(width: 96, height: 56)
-            Spacer()
-            volIconButton(symbol: "plus") {
-                Task { try? await bridgeClient.volumeInstant(direction: .up, step: 1) }
+
+            HStack {
+                volIconButton(symbol: model.muted ? "speaker.slash.fill" : "speaker.wave.2.fill") {
+                    Task { try? await bridgeClient.muteToggle() }
+                }
+                Spacer()
             }
-            Spacer()
-            Color.clear.frame(width: 36, height: 36)
+            .padding(.horizontal, 24)
         }
-        .padding(.horizontal, 24)
     }
 
     private func volIconButton(symbol: String, action: @escaping () -> Void) -> some View {

@@ -132,6 +132,7 @@ public class RoonBridgeClient {
 
         let (data, response) = try await session.data(for: request)
         try validateHTTPResponse(response, data: data)
+        NotificationCenter.default.post(name: .roonKeyDidAct, object: nil)
     }
 
     private func addAuth(_ request: inout URLRequest) {

@@ -60,6 +60,11 @@ public class KeyRouter {
         guard let index = Self.presetIndexForKeyCode(keyCode) else { return false }
         let isFn = modifiers.contains(.maskSecondaryFn)
 
+        if !isFn {
+            // Preset ramps over time; signal the menubar to poll faster
+            // so the displayed number tracks the ramp visibly.
+            NotificationCenter.default.post(name: .roonKeyDidRamp, object: nil)
+        }
         Task {
             do {
                 try await bridgeClient.volumePreset(index: index, instant: isFn)
