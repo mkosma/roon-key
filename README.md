@@ -122,7 +122,7 @@ roon-key replaces that approach entirely.
 - Now Playing notification center widget
 - Notch escape / occlusion handling. On notched MacBooks (mbp 14"/16"), once
   enough menubar items pile up to the left of the clock, the notch can hide
-  Rondo's status item entirely. macOS does not wrap to the left of the notch
+  RoonTrol's status item entirely. macOS does not wrap to the left of the notch
   by default; items past the notch are simply occluded. Options to explore:
   (a) a global keystroke that opens the popover programmatically without
   needing to click the status item; (b) detect occlusion and surface a
@@ -142,7 +142,7 @@ roon-key replaces that approach entirely.
   }
   ```
 
-  Low priority since Rondo is only useful at home today.
+  Low priority since RoonTrol is only useful at home today.
 
 ## License
 

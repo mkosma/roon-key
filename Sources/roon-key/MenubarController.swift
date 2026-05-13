@@ -350,7 +350,7 @@ struct SettingsView: View {
 
     private var toolbar: some View {
         HStack(spacing: 14) {
-            Text("Rondo")
+            Text("RoonTrol")
                 .font(RoonStyle.display(20))
                 .foregroundColor(RoonStyle.textPrimary)
                 .tracking(0.5)
@@ -612,7 +612,7 @@ private struct AboutSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Rondo")
+                Text("RoonTrol")
                     .font(RoonStyle.display(34))
                     .foregroundColor(RoonStyle.textPrimary)
                 Text("a menubar remote for Roon")
