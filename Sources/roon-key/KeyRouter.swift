@@ -63,9 +63,14 @@ public class KeyRouter {
         let isInstant = modifiers.contains(.maskControl)
 
         if !isInstant {
-            // Preset ramps over time; signal the menubar to poll faster
-            // so the displayed number tracks the ramp visibly.
-            NotificationCenter.default.post(name: .roonKeyDidRamp, object: nil)
+            // Preset ramps over time. Tell the menubar to start an
+            // optimistic local animation (and burst-poll) so the displayed
+            // number tracks the ramp without waiting on the bridge.
+            NotificationCenter.default.post(
+                name: .roonKeyDidRamp,
+                object: nil,
+                userInfo: ["presetIndex": index]
+            )
         }
         Task {
             do {

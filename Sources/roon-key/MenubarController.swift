@@ -158,6 +158,24 @@ public class MenubarController: NSObject {
     // -------------------------------------------------------------------------
 
     private var fastPollUntil: Date = .distantPast
+    private var optimisticTask: Task<Void, Never>?
+
+    /// Locally animate model.volume from its current value toward `target`
+    /// at the configured ramp step rate. Real /status polls overwrite the
+    /// volume as they arrive; this loop just reads the latest value each
+    /// tick so it always continues from ground truth.
+    func startOptimisticRamp(target: Int) {
+        optimisticTask?.cancel()
+        let stepMs = max(5, statusModel.config.rampStepMs)
+        optimisticTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                guard let self = self, let current = self.statusModel.volume else { return }
+                if current == target { return }
+                self.statusModel.volume = current < target ? current + 1 : current - 1
+                try? await Task.sleep(for: .milliseconds(stepMs))
+            }
+        }
+    }
 
     private func startPolling() {
         // Refresh immediately whenever a control action fires (keypress
@@ -181,10 +199,15 @@ public class MenubarController: NSObject {
             forName: .roonKeyDidRamp,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] note in
             Task { @MainActor in
-                self?.fastPollUntil = Date().addingTimeInterval(2.5)
-                self?.refreshNow()
+                guard let self = self else { return }
+                self.fastPollUntil = Date().addingTimeInterval(2.5)
+                self.refreshNow()
+                if let idx = note.userInfo?["presetIndex"] as? Int,
+                   idx >= 1, idx <= self.statusModel.config.presets.count {
+                    self.startOptimisticRamp(target: self.statusModel.config.presets[idx - 1])
+                }
             }
         }
 
@@ -553,6 +576,11 @@ struct SettingsView: View {
             ForEach(Array(model.config.presets.enumerated()), id: \.offset) { idx, value in
                 VStack(spacing: 4) {
                     presetPill(value: value, active: model.volume == value) {
+                        NotificationCenter.default.post(
+                            name: .roonKeyDidRamp,
+                            object: nil,
+                            userInfo: ["presetIndex": idx + 1]
+                        )
                         Task { try? await bridgeClient.volumePreset(index: idx + 1, instant: false) }
                     }
                     Text("F\(13 + idx)")
