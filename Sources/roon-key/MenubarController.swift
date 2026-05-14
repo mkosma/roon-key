@@ -670,6 +670,9 @@ private struct AboutSheet: View {
     let onClose: () -> Void
 
     private let bindings: [(String, String)] = [
+        ("Mute toggle", "F10"),
+        ("Volume -1", "F11"),
+        ("Volume +1", "F12"),
         ("Volume preset (ramp)", "F13 to F19"),
         ("Volume preset (instant)", "ctrl + F13 to F19"),
     ]
