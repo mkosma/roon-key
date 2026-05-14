@@ -157,7 +157,6 @@ public class MenubarController: NSObject {
     // Polling
     // -------------------------------------------------------------------------
 
-    private var fastPollUntil: Date = .distantPast
     private var optimisticTask: Task<Void, Never>?
 
     /// Locally animate model.volume from its current value toward `target`
@@ -182,66 +181,22 @@ public class MenubarController: NSObject {
     }
 
     private func startPolling() {
-        // Refresh immediately whenever a control action fires (keypress
-        // or popover button) so the displayed volume / state catches up.
-        NotificationCenter.default.addObserver(
-            forName: .roonKeyDidAct,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                // Burst-poll briefly: a single refresh often races ahead of
-                // Roon actually committing the change, leaving the menubar
-                // number stale until the next 1Hz poll.
-                self?.fastPollUntil = Date().addingTimeInterval(0.6)
-                self?.refreshNow()
-            }
-        }
-        // During a ramp the volume keeps changing for ~1-2s. Bump the
-        // poll cadence so the menubar number tracks the ramp.
-        NotificationCenter.default.addObserver(
-            forName: .roonKeyDidRamp,
-            object: nil,
-            queue: .main
-        ) { [weak self] note in
-            Task { @MainActor in
-                guard let self = self else { return }
-                self.fastPollUntil = Date().addingTimeInterval(2.5)
-                self.refreshNow()
-                // Optimistic animator temporarily disabled -- showing raw
-                // poll values only while bridge-side ramp behavior is being
-                // tuned.
-                _ = note
-                // if let idx = note.userInfo?["presetIndex"] as? Int,
-                //    idx >= 1, idx <= self.statusModel.config.presets.count {
-                //     self.startOptimisticRamp(target: self.statusModel.config.presets[idx - 1])
-                // }
-            }
-        }
-
-        Task {
-            while !Task.isCancelled {
-                await pollOnce()
-                let interval: Duration
-                if Date() < fastPollUntil {
-                    // Oversample heavily during a ramp. Half-step polling
-                    // visibly missed every other value because HTTP RTT plus
-                    // sleep slop pushed the effective interval past one step.
-                    let quarterStep = max(5, statusModel.config.rampStepMs / 4)
-                    interval = .milliseconds(quarterStep)
-                } else {
-                    interval = .seconds(1)
-                }
-                try? await Task.sleep(for: interval)
-            }
-        }
+        // Seed config / zones / initial state once on launch via /status,
+        // then live-update through the SSE event stream. The notifications
+        // .roonKeyDidAct / .roonKeyDidRamp no longer drive polling -- the
+        // bridge pushes zone changes directly.
+        Task { await fetchInitialStatus() }
+        Task { await runEventStream() }
     }
 
     func refreshNow() {
-        Task { await pollOnce() }
+        Task { await fetchInitialStatus() }
     }
 
-    private func pollOnce() async {
+    /// One-shot /control/status fetch. Used to seed config + zones on
+    /// launch and when the popover is opened (so the zone picker reflects
+    /// any newly available zones the event stream doesn't carry).
+    private func fetchInitialStatus() async {
         do {
             let s = try await bridgeClient.status()
             statusModel.lastStatusError = false
@@ -265,6 +220,42 @@ public class MenubarController: NSObject {
             statusModel.roonConnected = false
             updateTitle(isAtHome: networkProfile.isAtHome)
         }
+    }
+
+    /// Subscribe to /control/events. The stream lives for the app's
+    /// lifetime; on disconnect (bridge restart, Roon Core restart, network
+    /// blip) we wait briefly and reconnect.
+    private func runEventStream() async {
+        var backoff: Duration = .milliseconds(500)
+        while !Task.isCancelled {
+            do {
+                for try await event in bridgeClient.events() {
+                    apply(event: event)
+                    backoff = .milliseconds(500)
+                }
+                // Stream ended cleanly (rare); reconnect.
+            } catch {
+                NSLog("[MenubarController] event stream error: \(error.localizedDescription)")
+                statusModel.lastStatusError = true
+                statusModel.roonConnected = false
+                updateTitle(isAtHome: networkProfile.isAtHome)
+            }
+            try? await Task.sleep(for: backoff)
+            backoff = min(.seconds(5), backoff * 2)
+        }
+    }
+
+    private func apply(event: ZoneEvent) {
+        statusModel.lastStatusError = false
+        statusModel.roonConnected = event.roonConnected
+        statusModel.zoneName = event.zone?.displayName
+        statusModel.volume = event.zone?.volume
+        statusModel.muted = event.zone?.muted ?? false
+        statusModel.nowPlayingTitle = event.zone?.nowPlayingTitle
+        statusModel.nowPlayingArtist = event.zone?.nowPlayingArtist
+        statusModel.nowPlayingAlbum = event.zone?.nowPlayingAlbum
+        statusModel.zoneState = event.zone?.state
+        updateTitle(isAtHome: networkProfile.isAtHome)
     }
 }
 

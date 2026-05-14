@@ -83,6 +83,58 @@ public class RoonBridgeClient {
     }
 
     // -------------------------------------------------------------------------
+    // Event stream (Server-Sent Events)
+    // -------------------------------------------------------------------------
+
+    /// Returns an async sequence of zone events pushed by the bridge.
+    /// The stream terminates on connection drop or HTTP error; callers
+    /// should reconnect with backoff.
+    public func events() -> AsyncThrowingStream<ZoneEvent, Error> {
+        let url = baseURL.appendingPathComponent("control/events")
+        let token = authToken
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    var request = URLRequest(url: url)
+                    request.httpMethod = "GET"
+                    request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+                    request.cachePolicy = .reloadIgnoringLocalCacheData
+                    if let token, !token.isEmpty {
+                        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                    }
+
+                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                    guard let http = response as? HTTPURLResponse,
+                          (200...299).contains(http.statusCode) else {
+                        throw RoonBridgeError.invalidResponse
+                    }
+
+                    var dataBuffer = ""
+                    for try await line in bytes.lines {
+                        if Task.isCancelled { break }
+                        if line.isEmpty {
+                            if !dataBuffer.isEmpty,
+                               let payload = dataBuffer.data(using: .utf8),
+                               let event = try? JSONDecoder().decode(ZoneEvent.self, from: payload) {
+                                continuation.yield(event)
+                            }
+                            dataBuffer = ""
+                        } else if line.hasPrefix("data:") {
+                            let payload = line.dropFirst("data:".count).trimmingCharacters(in: .whitespaces)
+                            dataBuffer += payload
+                        }
+                        // : <comment> (keep-alives) and event: lines are ignored.
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Config
     // -------------------------------------------------------------------------
 
@@ -223,6 +275,16 @@ public struct ZoneStatus: Codable {
         case nowPlayingTitle = "now_playing_title"
         case nowPlayingArtist = "now_playing_artist"
         case nowPlayingAlbum = "now_playing_album"
+    }
+}
+
+public struct ZoneEvent: Codable {
+    public let roonConnected: Bool
+    public let zone: ZoneStatus?
+
+    enum CodingKeys: String, CodingKey {
+        case roonConnected = "roon_connected"
+        case zone
     }
 }
 
