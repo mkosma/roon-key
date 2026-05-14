@@ -93,18 +93,16 @@ public class MenubarController: NSObject {
         } else {
             let pop = NSPopover()
             pop.behavior = .transient
-            // Pre-size the popover. SwiftUI's .frame(width: 380) + .fixedSize
-            // sizes the host view, but only after first layout. Setting
-            // contentSize before assigning the view controller prevents the
-            // NSPopover from anchoring on a zero-sized rect (which would
-            // place the arrow far from the menubar button).
-            pop.contentSize = NSSize(width: 380, height: 580)
             let host = NSHostingController(
                 rootView: SettingsView(
                     model: statusModel,
                     bridgeClient: bridgeClient
                 )
             )
+            // Let SwiftUI's intrinsic size drive the popover. Without this the
+            // popover uses a stale/zero anchor frame and floats far below the
+            // menubar button.
+            host.sizingOptions = [.preferredContentSize]
             pop.contentViewController = host
             pop.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             self.popover = pop
