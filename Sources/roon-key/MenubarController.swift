@@ -36,7 +36,10 @@ public class MenubarController: NSObject {
     }
 
     public func setup() {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        // Fixed length so the button doesn't resize as the volume number
+        // widens (1 -> 100). NSPopover follows its anchor view, so a
+        // resizing button visibly drags the popover left/right.
+        let item = NSStatusBar.system.statusItem(withLength: 72)
         item.button?.target = self
         item.button?.action = #selector(handleClick(_:))
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -133,19 +136,11 @@ public class MenubarController: NSObject {
         }
 
         let glyph = statusModel.zoneState == "playing" ? "\u{25B6}" : "\u{23F8}"
-        // Right-align volume in a 3-char field with a monospaced-digit font
-        // so the menubar button width stays constant as volume changes.
-        // Otherwise the variable-length status item resizes and the popover
-        // (anchored to the button) shifts left/right with every poll tick.
-        let volume = statusModel.volume.map { String(format: "%3d", $0) } ?? " --"
-        let monoFont = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        let volume = statusModel.volume.map { "\($0)" } ?? "--"
         let attr = NSMutableAttributedString()
         attr.append(NSAttributedString(
-            string: " \(volume)  ",
-            attributes: [
-                .foregroundColor: NSColor.labelColor,
-                .font: monoFont,
-            ]
+            string: "\(volume)  ",
+            attributes: [.foregroundColor: NSColor.labelColor]
         ))
         attr.append(NSAttributedString(
             string: glyph,
@@ -155,6 +150,7 @@ public class MenubarController: NSObject {
             ]
         ))
         button.attributedTitle = attr
+        button.alignment = .center
     }
 
     // -------------------------------------------------------------------------
