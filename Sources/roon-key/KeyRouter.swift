@@ -14,7 +14,9 @@ import CoreGraphics
 ///     - F12            : volume up   (instant, +1)
 /// - F13-F19 (presets):
 ///     - No modifier    : preset (ramp)
-///     - Fn modifier    : preset (instant jump)
+///     - Ctrl modifier  : preset (instant jump)
+///   (fn is unusable as a modifier here: many keyboards set the fn flag
+///   automatically on F13+ so it can't be distinguished from "no modifier".)
 /// - Consumer keys (bare mute, vol+/-, etc.) are NOT intercepted; macOS
 ///   handles them locally. `mediaremoted` claims them before any public
 ///   CGEventTap can see them on macOS 13+. Use fn+F10/F11/F12 instead.
@@ -56,18 +58,18 @@ public class KeyRouter {
             return true
         }
 
-        // F13-F19 are presets. Fn modifier selects instant jump.
+        // F13-F19 are presets. Ctrl modifier selects instant jump.
         guard let index = Self.presetIndexForKeyCode(keyCode) else { return false }
-        let isFn = modifiers.contains(.maskSecondaryFn)
+        let isInstant = modifiers.contains(.maskControl)
 
-        if !isFn {
+        if !isInstant {
             // Preset ramps over time; signal the menubar to poll faster
             // so the displayed number tracks the ramp visibly.
             NotificationCenter.default.post(name: .roonKeyDidRamp, object: nil)
         }
         Task {
             do {
-                try await bridgeClient.volumePreset(index: index, instant: isFn)
+                try await bridgeClient.volumePreset(index: index, instant: isInstant)
             } catch {
                 NSLog("[KeyRouter] Preset call failed: \(error.localizedDescription)")
             }

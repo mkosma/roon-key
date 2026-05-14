@@ -628,7 +628,7 @@ private struct AboutSheet: View {
         ("Volume -1", "fn + F11"),
         ("Volume +1", "fn + F12"),
         ("Volume preset (ramp)", "F13 to F19"),
-        ("Volume preset (instant)", "fn + F13 to F19"),
+        ("Volume preset (instant)", "ctrl + F13 to F19"),
     ]
 
     var body: some View {
