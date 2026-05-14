@@ -191,9 +191,15 @@ public class MenubarController: NSObject {
         Task {
             while !Task.isCancelled {
                 await pollOnce()
-                let interval: Duration = Date() < fastPollUntil
-                    ? .milliseconds(33)
-                    : .seconds(1)
+                let interval: Duration
+                if Date() < fastPollUntil {
+                    // Track the ramp at half the step interval -- Nyquist for
+                    // catching every intermediate volume value.
+                    let halfStep = max(5, statusModel.config.rampStepMs / 2)
+                    interval = .milliseconds(halfStep)
+                } else {
+                    interval = .seconds(1)
+                }
                 try? await Task.sleep(for: interval)
             }
         }
