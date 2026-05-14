@@ -99,10 +99,13 @@ public class MenubarController: NSObject {
                     bridgeClient: bridgeClient
                 )
             )
-            // Let SwiftUI's intrinsic size drive the popover. Without this the
-            // popover uses a stale/zero anchor frame and floats far below the
-            // menubar button.
-            host.sizingOptions = [.preferredContentSize]
+            // Lock the popover to a fixed size. Letting NSHostingController
+            // propagate preferredContentSize made NSPopover re-anchor on every
+            // poll tick, visibly jittering the popover left/right as the
+            // volume number changed. SettingsView's outer .frame matches.
+            let size = NSSize(width: 380, height: PopoverLayout.height)
+            host.view.setFrameSize(size)
+            pop.contentSize = size
             pop.contentViewController = host
             pop.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             self.popover = pop
@@ -250,6 +253,17 @@ public class StatusModel: ObservableObject {
 }
 
 // -------------------------------------------------------------------------
+// Popover layout constants
+// -------------------------------------------------------------------------
+
+enum PopoverLayout {
+    static let width: CGFloat = 380
+    /// Hard-coded so the popover never resizes -- prevents NSPopover from
+    /// re-anchoring (and visibly jittering) as data inside changes.
+    static let height: CGFloat = 470
+}
+
+// -------------------------------------------------------------------------
 // Roon style tokens
 // -------------------------------------------------------------------------
 
@@ -315,13 +329,11 @@ struct SettingsView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 10)
         }
-        .frame(width: 380)
-        .fixedSize(horizontal: false, vertical: true)
-        // Disable implicit SwiftUI animations on data-driven text. Otherwise
-        // every poll tick (150ms during a ramp) animates the volume number's
-        // intrinsic width, NSHostingController reports a fluctuating
-        // preferredContentSize, and NSPopover re-anchors horizontally on each
-        // change -- making the popover visibly jitter left/right.
+        .frame(width: PopoverLayout.width, height: PopoverLayout.height)
+        // Disable implicit SwiftUI animations on data-driven text so we don't
+        // animate intrinsic widths between poll ticks. Combined with the
+        // fixed popover size in togglePopover, this keeps the popover from
+        // re-anchoring as data changes.
         .transaction { $0.animation = nil }
         .background(RoonStyle.bg)
         .preferredColorScheme(.dark)
