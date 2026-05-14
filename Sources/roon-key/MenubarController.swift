@@ -172,6 +172,10 @@ public class MenubarController: NSObject {
                 guard let self = self, let current = self.statusModel.volume else { return }
                 if current == target { return }
                 self.statusModel.volume = current < target ? current + 1 : current - 1
+                // Menubar title only refreshes from pollOnce, so push it
+                // each animator tick or the popover would race ahead of the
+                // status item.
+                self.updateTitle(isAtHome: self.networkProfile.isAtHome)
                 try? await Task.sleep(for: .milliseconds(stepMs))
             }
         }
