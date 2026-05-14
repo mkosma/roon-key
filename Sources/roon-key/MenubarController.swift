@@ -167,7 +167,13 @@ public class MenubarController: NSObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.refreshNow() }
+            Task { @MainActor in
+                // Burst-poll briefly: a single refresh often races ahead of
+                // Roon actually committing the change, leaving the menubar
+                // number stale until the next 1Hz poll.
+                self?.fastPollUntil = Date().addingTimeInterval(0.6)
+                self?.refreshNow()
+            }
         }
         // During a ramp the volume keeps changing for ~1-2s. Bump the
         // poll cadence so the menubar number tracks the ramp.
