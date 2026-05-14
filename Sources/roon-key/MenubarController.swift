@@ -182,11 +182,18 @@ public class MenubarController: NSObject {
 
     private func startPolling() {
         // Seed config / zones / initial state once on launch via /status,
-        // then live-update through the SSE event stream. The notifications
-        // .roonKeyDidAct / .roonKeyDidRamp no longer drive polling -- the
-        // bridge pushes zone changes directly.
-        Task { await fetchInitialStatus() }
-        Task { await runEventStream() }
+        // then live-update through the SSE event stream. Waiting for the
+        // first successful /status ensures BridgeDiscovery has resolved
+        // the endpoint -- otherwise the SSE Task captures the default
+        // baseURL too early and hangs against an unreachable host.
+        Task {
+            while !Task.isCancelled {
+                await fetchInitialStatus()
+                if !statusModel.lastStatusError { break }
+                try? await Task.sleep(for: .seconds(1))
+            }
+            await runEventStream()
+        }
     }
 
     func refreshNow() {
@@ -233,7 +240,6 @@ public class MenubarController: NSObject {
                     apply(event: event)
                     backoff = .milliseconds(500)
                 }
-                // Stream ended cleanly (rare); reconnect.
             } catch {
                 NSLog("[MenubarController] event stream error: \(error.localizedDescription)")
                 statusModel.lastStatusError = true

@@ -99,19 +99,29 @@ public class RoonBridgeClient {
                     request.httpMethod = "GET"
                     request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
                     request.cachePolicy = .reloadIgnoringLocalCacheData
+                    request.timeoutInterval = 60 * 60 * 24
                     if let token, !token.isEmpty {
                         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
                     }
 
-                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                    // Dedicated config with long timeouts so the long-lived
+                    // SSE stream doesn't trip the 60s default.
+                    let config = URLSessionConfiguration.default
+                    config.timeoutIntervalForRequest = 60 * 60 * 24
+                    config.timeoutIntervalForResource = 60 * 60 * 24 * 7
+                    let session = URLSession(configuration: config)
+                    let (bytes, response) = try await session.bytes(for: request)
                     guard let http = response as? HTTPURLResponse,
                           (200...299).contains(http.statusCode) else {
                         throw RoonBridgeError.invalidResponse
                     }
 
+                    // Parse SSE byte-by-byte. AsyncLineSequence (.lines) drops
+                    // empty lines, which are the SSE event delimiter -- we'd
+                    // never dispatch anything.
+                    var lineBytes: [UInt8] = []
                     var dataBuffer = ""
-                    for try await line in bytes.lines {
-                        if Task.isCancelled { break }
+                    func dispatchLine(_ line: String) {
                         if line.isEmpty {
                             if !dataBuffer.isEmpty,
                                let payload = dataBuffer.data(using: .utf8),
@@ -123,7 +133,19 @@ public class RoonBridgeClient {
                             let payload = line.dropFirst("data:".count).trimmingCharacters(in: .whitespaces)
                             dataBuffer += payload
                         }
-                        // : <comment> (keep-alives) and event: lines are ignored.
+                        // : <comment> (keep-alives) and event: lines ignored.
+                    }
+                    for try await byte in bytes {
+                        if Task.isCancelled { break }
+                        if byte == 0x0A { // \n
+                            // Strip trailing \r if present (CRLF).
+                            if lineBytes.last == 0x0D { lineBytes.removeLast() }
+                            let line = String(decoding: lineBytes, as: UTF8.self)
+                            lineBytes.removeAll(keepingCapacity: true)
+                            dispatchLine(line)
+                        } else {
+                            lineBytes.append(byte)
+                        }
                     }
                     continuation.finish()
                 } catch {
