@@ -128,7 +128,16 @@ private func functionKeyTapCallback(
         return Unmanaged.passRetained(event)
     }
 
-    NSLog("[KeyEventMonitor] routing F-key: \(keyCode) fn=\(flags.contains(.maskSecondaryFn))")
+    NSLog(String(
+        format: "[KeyEventMonitor] routing F-key: %d flags=0x%llx fn=%@ ctrl=%@ opt=%@ cmd=%@ shift=%@",
+        keyCode,
+        flags.rawValue,
+        flags.contains(.maskSecondaryFn) ? "Y" : "n",
+        flags.contains(.maskControl) ? "Y" : "n",
+        flags.contains(.maskAlternate) ? "Y" : "n",
+        flags.contains(.maskCommand) ? "Y" : "n",
+        flags.contains(.maskShift) ? "Y" : "n"
+    ))
     DispatchQueue.main.async {
         monitor.keyRouter.routeFunctionKey(keyCode, modifiers: flags)
     }
