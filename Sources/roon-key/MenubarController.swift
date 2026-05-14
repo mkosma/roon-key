@@ -182,7 +182,7 @@ public class MenubarController: NSObject {
             while !Task.isCancelled {
                 await pollOnce()
                 let interval: Duration = Date() < fastPollUntil
-                    ? .milliseconds(150)
+                    ? .milliseconds(33)
                     : .seconds(1)
                 try? await Task.sleep(for: interval)
             }
