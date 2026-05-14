@@ -768,7 +768,7 @@ private struct EditSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel("Ramp speed")
                 HStack(spacing: 12) {
-                    Slider(value: $rampSecondsPerUnit, in: 0.005...0.5, step: 0.005)
+                    Slider(value: $rampSecondsPerUnit, in: 0.005...0.200, step: 0.005)
                     TextField("", value: $rampSecondsPerUnit, format: .number.precision(.fractionLength(3)))
                         .textFieldStyle(.plain)
                         .multilineTextAlignment(.center)
@@ -853,7 +853,7 @@ private struct EditSheet: View {
         presetEdits = Array(p.prefix(7))
         if let lo = presetEdits.first { evenMin = lo }
         if let hi = presetEdits.last { evenMax = hi }
-        rampSecondsPerUnit = max(0.005, min(0.5, Double(model.config.rampStepMs) / 1000.0))
+        rampSecondsPerUnit = max(0.005, min(0.200, Double(model.config.rampStepMs) / 1000.0))
     }
 
     private func applyEvenSpacing() {
@@ -873,7 +873,7 @@ private struct EditSheet: View {
         ensureSize()
         let clamped = presetEdits.map { max(0, min(100, $0)) }
         model.config.presets = clamped
-        model.config.rampStepMs = max(1, Int((rampSecondsPerUnit * 1000.0).rounded()))
+        model.config.rampStepMs = max(5, min(200, Int((rampSecondsPerUnit * 1000.0).rounded())))
         isSaving = true
         errorText = ""
         Task {
