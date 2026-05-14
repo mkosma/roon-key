@@ -193,10 +193,11 @@ public class MenubarController: NSObject {
                 await pollOnce()
                 let interval: Duration
                 if Date() < fastPollUntil {
-                    // Track the ramp at half the step interval -- Nyquist for
-                    // catching every intermediate volume value.
-                    let halfStep = max(5, statusModel.config.rampStepMs / 2)
-                    interval = .milliseconds(halfStep)
+                    // Oversample heavily during a ramp. Half-step polling
+                    // visibly missed every other value because HTTP RTT plus
+                    // sleep slop pushed the effective interval past one step.
+                    let quarterStep = max(5, statusModel.config.rampStepMs / 4)
+                    interval = .milliseconds(quarterStep)
                 } else {
                     interval = .seconds(1)
                 }
