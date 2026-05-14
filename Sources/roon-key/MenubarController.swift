@@ -133,11 +133,19 @@ public class MenubarController: NSObject {
         }
 
         let glyph = statusModel.zoneState == "playing" ? "\u{25B6}" : "\u{23F8}"
-        let volume = statusModel.volume.map { "\($0)" } ?? "--"
+        // Right-align volume in a 3-char field with a monospaced-digit font
+        // so the menubar button width stays constant as volume changes.
+        // Otherwise the variable-length status item resizes and the popover
+        // (anchored to the button) shifts left/right with every poll tick.
+        let volume = statusModel.volume.map { String(format: "%3d", $0) } ?? " --"
+        let monoFont = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         let attr = NSMutableAttributedString()
         attr.append(NSAttributedString(
             string: " \(volume)  ",
-            attributes: [.foregroundColor: NSColor.labelColor]
+            attributes: [
+                .foregroundColor: NSColor.labelColor,
+                .font: monoFont,
+            ]
         ))
         attr.append(NSAttributedString(
             string: glyph,

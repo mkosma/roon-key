@@ -72,6 +72,7 @@ public class RoonBridgeClient {
         let url = baseURL.appendingPathComponent("control/status")
         var request = URLRequest(url: url, timeoutInterval: timeoutInterval)
         request.httpMethod = "GET"
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         addAuth(&request)
 
         let (data, response) = try await session.data(for: request)
