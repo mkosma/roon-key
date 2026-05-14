@@ -208,10 +208,14 @@ public class MenubarController: NSObject {
                 guard let self = self else { return }
                 self.fastPollUntil = Date().addingTimeInterval(2.5)
                 self.refreshNow()
-                if let idx = note.userInfo?["presetIndex"] as? Int,
-                   idx >= 1, idx <= self.statusModel.config.presets.count {
-                    self.startOptimisticRamp(target: self.statusModel.config.presets[idx - 1])
-                }
+                // Optimistic animator temporarily disabled -- showing raw
+                // poll values only while bridge-side ramp behavior is being
+                // tuned.
+                _ = note
+                // if let idx = note.userInfo?["presetIndex"] as? Int,
+                //    idx >= 1, idx <= self.statusModel.config.presets.count {
+                //     self.startOptimisticRamp(target: self.statusModel.config.presets[idx - 1])
+                // }
             }
         }
 
