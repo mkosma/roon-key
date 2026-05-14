@@ -8,10 +8,12 @@ import CoreGraphics
 /// event pass through.
 ///
 /// Modifier semantics:
-/// - F10/F11/F12 (reached via fn on a MacBook keyboard):
-///     - F10            : mute toggle (instant)
-///     - F11            : volume down (instant, -1)
-///     - F12            : volume up   (instant, +1)
+/// - F10/F11/F12 are NOT routed: macOS dispatches them as consumer
+///   media keys (mute / vol- / vol+) in parallel with the F-key
+///   keycode, and the consumer-page event is reserved by mediaremoted
+///   on macOS 13+ so we can't suppress it. Intercepting the F-key
+///   would just produce a duplicate Roon action alongside the system
+///   volume change. Use F13-F19 presets (or the popover) instead.
 /// - F13-F19 (presets):
 ///     - No modifier    : preset (ramp)
 ///     - Ctrl modifier  : preset (instant jump)
@@ -39,25 +41,6 @@ public class KeyRouter {
     /// Returns true if the key was consumed, false to pass through.
     @discardableResult
     public func routeFunctionKey(_ keyCode: Int, modifiers: CGEventFlags) -> Bool {
-        // F10/F11/F12 are volume controls (reached via fn on a MacBook).
-        if let volumeAction = Self.volumeActionForKeyCode(keyCode) {
-            Task {
-                do {
-                    switch volumeAction {
-                    case .mute:
-                        try await bridgeClient.muteToggle()
-                    case .down:
-                        try await bridgeClient.volumeInstant(direction: .down, step: 1)
-                    case .up:
-                        try await bridgeClient.volumeInstant(direction: .up, step: 1)
-                    }
-                } catch {
-                    NSLog("[KeyRouter] Volume call failed: \(error.localizedDescription)")
-                }
-            }
-            return true
-        }
-
         // F13-F19 are presets. Ctrl modifier selects instant jump.
         guard let index = Self.presetIndexForKeyCode(keyCode) else { return false }
         let isInstant = modifiers.contains(.maskControl)
@@ -83,20 +66,9 @@ public class KeyRouter {
         return true
     }
 
-    private enum VolumeAction { case mute, down, up }
-
-    private nonisolated static func volumeActionForKeyCode(_ keyCode: Int) -> VolumeAction? {
-        switch keyCode {
-        case 109: return .mute  // F10
-        case 103: return .down  // F11
-        case 111: return .up    // F12
-        default:  return nil
-        }
-    }
-
-    /// True if this keycode is one roon-key routes (F10-F12 or F13-F19).
+    /// True if this keycode is one roon-key routes (F13-F19 presets).
     public nonisolated static func handlesKeyCode(_ keyCode: Int) -> Bool {
-        volumeActionForKeyCode(keyCode) != nil || presetIndexForKeyCode(keyCode) != nil
+        presetIndexForKeyCode(keyCode) != nil
     }
 
     // -------------------------------------------------------------------------
