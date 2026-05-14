@@ -317,6 +317,12 @@ struct SettingsView: View {
         }
         .frame(width: 380)
         .fixedSize(horizontal: false, vertical: true)
+        // Disable implicit SwiftUI animations on data-driven text. Otherwise
+        // every poll tick (150ms during a ramp) animates the volume number's
+        // intrinsic width, NSHostingController reports a fluctuating
+        // preferredContentSize, and NSPopover re-anchors horizontally on each
+        // change -- making the popover visibly jitter left/right.
+        .transaction { $0.animation = nil }
         .background(RoonStyle.bg)
         .preferredColorScheme(.dark)
         .background(
@@ -452,32 +458,34 @@ struct SettingsView: View {
     // ---- Volume ----
 
     private var volumeRow: some View {
-        // ZStack centers the [minus, number+MUTED, plus] cluster geometrically
-        // in the row; mute hangs off to the left without disturbing center.
+        // Mute hangs off to the left without disturbing the centered cluster.
+        // The number lives inside a fixed-size ZStack so the MUTED label
+        // (offset below) doesn't push the number off the buttons' midline.
         ZStack {
             HStack(spacing: 22) {
                 volIconButton(symbol: "minus") {
                     Task { try? await bridgeClient.volumeInstant(direction: .down, step: 1) }
                 }
-                VStack(spacing: 6) {
+                ZStack {
                     Text(model.volume.map(String.init) ?? "--")
                         .font(RoonStyle.body(38))
                         .foregroundColor(model.muted ? RoonStyle.textSecondary : RoonStyle.textPrimary)
                         .monospacedDigit()
+                        .animation(nil, value: model.volume)
                     Text("MUTED")
                         .font(.system(size: 9, weight: .semibold))
                         .tracking(1.2)
-                        .foregroundColor(model.muted ? RoonStyle.accent : .clear)
+                        .foregroundColor(RoonStyle.accent)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
                         .overlay(
-                            Capsule().stroke(
-                                model.muted ? RoonStyle.accent.opacity(0.6) : .clear,
-                                lineWidth: 1
-                            )
+                            Capsule().stroke(RoonStyle.accent.opacity(0.6), lineWidth: 1)
                         )
+                        .opacity(model.muted ? 1 : 0)
+                        .offset(y: 30)
+                        .allowsHitTesting(false)
                 }
-                .frame(width: 96)
+                .frame(width: 96, height: 50)
                 volIconButton(symbol: "plus") {
                     Task { try? await bridgeClient.volumeInstant(direction: .up, step: 1) }
                 }
