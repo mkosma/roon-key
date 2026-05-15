@@ -6,7 +6,7 @@ import Foundation
 /// gracefully (e.g. show yellow dot in menubar if bridge unreachable).
 ///
 /// The base endpoint is updated by BridgeDiscovery after mDNS resolution.
-/// roon-key sends ONE HTTP request per keypress; the bridge handles ramping.
+/// roontrol sends ONE HTTP request per keypress; the bridge handles ramping.
 @MainActor
 public class RoonBridgeClient {
 
@@ -161,7 +161,7 @@ public class RoonBridgeClient {
     // -------------------------------------------------------------------------
 
     public func getConfig() async throws -> RoonKeyConfig {
-        let url = baseURL.appendingPathComponent("config/roon-key")
+        let url = baseURL.appendingPathComponent("config/roontrol")
         var request = URLRequest(url: url, timeoutInterval: timeoutInterval)
         request.httpMethod = "GET"
         addAuth(&request)
@@ -174,7 +174,7 @@ public class RoonBridgeClient {
     }
 
     public func setConfig(_ config: RoonKeyConfig) async throws {
-        let url = baseURL.appendingPathComponent("config/roon-key")
+        let url = baseURL.appendingPathComponent("config/roontrol")
         var request = URLRequest(url: url, timeoutInterval: timeoutInterval)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

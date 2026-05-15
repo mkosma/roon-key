@@ -49,7 +49,7 @@ After upscale, save result to `/Users/monty/dl/` and tell me to inspect before c
 1. Recolor bridge from current indigo to `#6062BB` (Color Range -> Fill)
 2. Recolor background from cream to `#F2ECF6` (Magic Wand -> Fill)
 3. Paint over spandrel speckles with `#F2ECF6` (keep arch outline, voussoirs, abutments untouched)
-4. Save as `RoonBridge-icon-light.png` in `/Users/monty/dev/roon-key/design/masters/`
+4. Save as `RoonBridge-icon-light.png` in `/Users/monty/dev/roontrol/design/masters/`
 5. Duplicate, invert colors (or swap with Color Range)
 6. Add vertical gradient on bg: `#6062BB` top -> `#5455A1` bottom
 7. Save as `RoonBridge-icon-dark.png`
@@ -65,7 +65,7 @@ After upscale, save result to `/Users/monty/dl/` and tell me to inspect before c
 
 ## Prompt files
 
-`/Users/monty/dev/roon-key/design/prompts/` - 9 numbered files for the planned 3-chat workflow. Most are now superseded by the manual-edit plan but the banner/wordmark/RoonTrol prompts (02-08) remain useful as the workflow advances.
+`/Users/monty/dev/roontrol/design/prompts/` - 9 numbered files for the planned 3-chat workflow. Most are now superseded by the manual-edit plan but the banner/wordmark/RoonTrol prompts (02-08) remain useful as the workflow advances.
 
 ## Tool decisions
 

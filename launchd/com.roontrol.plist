@@ -3,18 +3,18 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.roon-key</string>
+    <string>com.roontrol</string>
 
     <!--
-      Adjust ProgramArguments to the installed roon-key binary on mbp.
+      Adjust ProgramArguments to the installed roontrol binary on mbp.
       For a release-built .app bundle this is typically:
-        /Applications/roon-key.app/Contents/MacOS/roon-key
+        /Applications/roontrol.app/Contents/MacOS/roontrol
       For a swift-build dev binary:
-        /Users/monty/dev/roon-key/.build/release/roon-key
+        /Users/monty/dev/roontrol/.build/release/roontrol
     -->
     <key>ProgramArguments</key>
     <array>
-        <string>/Applications/roon-key.app/Contents/MacOS/roon-key</string>
+        <string>/Applications/roontrol.app/Contents/MacOS/roontrol</string>
     </array>
 
     <key>EnvironmentVariables</key>
@@ -30,9 +30,9 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>/Users/monty/Library/Logs/roon-key.log</string>
+    <string>/Users/monty/Library/Logs/roontrol.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/monty/Library/Logs/roon-key.log</string>
+    <string>/Users/monty/Library/Logs/roontrol.log</string>
 </dict>
 </plist>

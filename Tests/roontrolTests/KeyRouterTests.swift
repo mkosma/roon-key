@@ -1,6 +1,6 @@
 import XCTest
 import CoreGraphics
-@testable import roon_key
+@testable import roontrol
 
 /// Tests for KeyRouter modifier logic and F13-F19 mapping.
 ///

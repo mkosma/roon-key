@@ -1,4 +1,4 @@
-# roon-key Claude instructions
+# roontrol Claude instructions
 
 ## What this is
 
@@ -9,9 +9,9 @@ to roon-bridge over HTTP. arm64, macOS 13+, no dock icon (LSUIElement).
 
 - **No Karabiner.** Key interception is CGEventTap only.
 - **mbp talks ONLY to roon-bridge via HTTP.** No direct Roon Core connection.
-- **No local config on mbp.** All settings live in roon-bridge's config.json. Sole exception: `BRIDGE_AUTH_TOKEN` lives in roon-key's LaunchAgent plist EnvironmentVariables (mirrors how roon-bridge stores its own copy). Repo-tracked source: `launchd/com.roon-key.plist`. Rotation requires editing both the bridge plist and this one.
+- **No local config on mbp.** All settings live in roon-bridge's config.json. Sole exception: `BRIDGE_AUTH_TOKEN` lives in roontrol's LaunchAgent plist EnvironmentVariables (mirrors how roon-bridge stores its own copy). Repo-tracked source: `launchd/com.roontrol.plist`. Rotation requires editing both the bridge plist and this one.
 - **No em dashes** in any output (code comments, commit messages, docs).
-- **Server-side ramping.** roon-key sends one HTTP request per keypress.
+- **Server-side ramping.** roontrol sends one HTTP request per keypress.
 
 ## Build
 
@@ -24,7 +24,7 @@ Mini has CLT only (no Xcode) -- cannot build AppKit targets here.
 swift test
 ```
 
-Tests live in `Tests/roon-keyTests/`. No real Roon calls; MockURLProtocol intercepts URLSession.
+Tests live in `Tests/roontrolTests/`. No real Roon calls; MockURLProtocol intercepts URLSession.
 
 ## Commit conventions
 
@@ -37,7 +37,7 @@ Tests live in `Tests/roon-keyTests/`. No real Roon calls; MockURLProtocol interc
 ## Source layout
 
 ```
-Sources/roon-key/
+Sources/roontrol/
   main.swift             -- entry point
   AppDelegate.swift      -- lifecycle, accessibility check
   KeyEventMonitor.swift  -- CGEventTap for consumer keys + F13-F19
@@ -47,7 +47,7 @@ Sources/roon-key/
   NetworkProfile.swift   -- at-home detection (NWPathMonitor)
   MenubarController.swift -- NSStatusItem + SwiftUI popover
 
-Tests/roon-keyTests/
+Tests/roontrolTests/
   NetworkProfileTests.swift   -- interface simulation
   KeyRouterTests.swift        -- keycode mapping, modifier routing
   RoonBridgeClientTests.swift -- encoding, error handling, MockURLProtocol

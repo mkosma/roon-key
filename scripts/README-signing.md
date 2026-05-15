@@ -1,4 +1,4 @@
-# Stable code signing for roon-key (Accessibility grant persistence)
+# Stable code signing for roontrol (Accessibility grant persistence)
 
 ## Problem
 
@@ -16,7 +16,7 @@ requirement, which is stable across rebuilds.
 1. Open **Keychain Access**.
 2. Menu: **Keychain Access** → **Certificate Assistant** → **Create a
    Certificate...**.
-3. Name: `roon-key local` (or any name you'll recognize).
+3. Name: `roontrol local` (or any name you'll recognize).
 4. Identity Type: **Self Signed Root**.
 5. Certificate Type: **Code Signing**.
 6. Click **Create**.
@@ -27,7 +27,7 @@ requirement, which is stable across rebuilds.
 Add to `~/.zshrc` (or whatever shell rc your interactive shell sources):
 
 ```sh
-export ROON_KEY_SIGN_IDENTITY="roon-key local"
+export ROONTROL_SIGN_IDENTITY="roontrol local"
 ```
 
 Open a new terminal so the export takes effect.
@@ -35,17 +35,17 @@ Open a new terminal so the export takes effect.
 ### 3. Rebuild and reinstall
 
 ```sh
-launchctl unload ~/Library/LaunchAgents/com.roon-key.plist
+launchctl unload ~/Library/LaunchAgents/com.roontrol.plist
 ./scripts/make-app.sh
-launchctl load ~/Library/LaunchAgents/com.roon-key.plist
+launchctl load ~/Library/LaunchAgents/com.roontrol.plist
 ```
 
 ### 4. Re-grant Accessibility one last time
 
 System Settings → Privacy & Security → Accessibility:
 
-- Remove every existing `roon-key` entry (probably stale from ad-hoc builds).
-- Re-add the fresh `/Applications/roon-key.app`.
+- Remove every existing `roontrol` entry (probably stale from ad-hoc builds).
+- Re-add the fresh `/Applications/roontrol.app`.
 
 From this point forward, rebuilds reuse the same code identity and the
 Accessibility grant persists.
@@ -53,7 +53,7 @@ Accessibility grant persists.
 ## Verification
 
 ```sh
-codesign -dvvv /Applications/roon-key.app 2>&1 | grep -E 'Authority|Identifier|TeamIdentifier'
+codesign -dvvv /Applications/roontrol.app 2>&1 | grep -E 'Authority|Identifier|TeamIdentifier'
 ```
 
-Look for `Authority=roon-key local` rather than `Signature=adhoc`.
+Look for `Authority=roontrol local` rather than `Signature=adhoc`.

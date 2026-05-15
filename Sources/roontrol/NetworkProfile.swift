@@ -11,14 +11,14 @@ import Network
 @MainActor
 public class NetworkProfile {
 
-    /// True when the mbp is on the home LAN and roon-key should intercept keys.
+    /// True when the mbp is on the home LAN and roontrol should intercept keys.
     public private(set) var isAtHome: Bool = false
 
     /// Called whenever the at-home verdict changes.
     public var onStatusChange: ((Bool) -> Void)?
 
     private var pathMonitor: NWPathMonitor?
-    private let monitorQueue = DispatchQueue(label: "com.kosma.roon-key.network", qos: .utility)
+    private let monitorQueue = DispatchQueue(label: "com.kosma.roontrol.network", qos: .utility)
 
     public init() {}
 

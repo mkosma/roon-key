@@ -96,7 +96,7 @@ public class KeyRouter {
         }
     }
 
-    /// True if this keycode is one roon-key routes (F10-F12 or F13-F19).
+    /// True if this keycode is one roontrol routes (F10-F12 or F13-F19).
     public nonisolated static func handlesKeyCode(_ keyCode: Int) -> Bool {
         volumeActionForKeyCode(keyCode) != nil || presetIndexForKeyCode(keyCode) != nil
     }

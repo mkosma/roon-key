@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// MenubarController: NSStatusItem + SwiftUI popover for roon-key.
+/// MenubarController: NSStatusItem + SwiftUI popover for roontrol.
 ///
 /// Shows: zone name, volume level, connection state dot.
 /// Popover: Roon-styled now-playing, transport, volume, presets, footer.
@@ -73,7 +73,7 @@ public class MenubarController: NSObject {
         guard let item = statusItem else { return }
         let menu = NSMenu()
         let quitItem = NSMenuItem(
-            title: "Quit roon-key",
+            title: "Quit RoonTrol",
             action: #selector(quit(_:)),
             keyEquivalent: "q"
         )

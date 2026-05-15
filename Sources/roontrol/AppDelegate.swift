@@ -39,7 +39,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // mirroring how roon-bridge itself reads its copy of the same secret.
         let token = ProcessInfo.processInfo.environment["BRIDGE_AUTH_TOKEN"]
         if token == nil || token?.isEmpty == true {
-            NSLog("[roon-key] BRIDGE_AUTH_TOKEN not set; bridge will reject /control and /config requests with 401")
+            NSLog("[roontrol] BRIDGE_AUTH_TOKEN not set; bridge will reject /control and /config requests with 401")
         }
         let client = RoonBridgeClient(authToken: token)
         discovery.onEndpointResolved = { endpoint in
@@ -83,7 +83,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             var error: Unmanaged<CFError>?
             if !CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error) {
                 if let err = error?.takeRetainedValue() {
-                    NSLog("[roon-key] font register failed \(url.lastPathComponent): \(err)")
+                    NSLog("[roontrol] font register failed \(url.lastPathComponent): \(err)")
                 }
             }
         }
@@ -107,12 +107,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.messageText = "Accessibility Access Required"
         alert.informativeText = """
-        roon-key needs Accessibility access to intercept media keys and function keys (F13-F19).
+        roontrol needs Accessibility access to intercept media keys and function keys (F13-F19).
 
         Please grant access in:
         System Settings > Privacy & Security > Accessibility
 
-        Then relaunch roon-key.
+        Then relaunch roontrol.
         """
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Open System Settings")

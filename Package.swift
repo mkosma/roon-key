@@ -4,17 +4,17 @@
 import PackageDescription
 
 let package = Package(
-    name: "roon-key",
+    name: "roontrol",
     platforms: [
         .macOS(.v13),
     ],
     products: [
-        .executable(name: "roon-key", targets: ["roon-key"]),
+        .executable(name: "roontrol", targets: ["roontrol"]),
     ],
     targets: [
         .executableTarget(
-            name: "roon-key",
-            path: "Sources/roon-key",
+            name: "roontrol",
+            path: "Sources/roontrol",
             exclude: [
                 // Info.plist is used by the .app bundle wrapper, not by the SPM binary.
                 // When building with Xcode, add it to the target's Info.plist setting.
@@ -28,9 +28,9 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "roon-keyTests",
-            dependencies: ["roon-key"],
-            path: "Tests/roon-keyTests"
+            name: "roontrolTests",
+            dependencies: ["roontrol"],
+            path: "Tests/roontrolTests"
         ),
     ]
 )

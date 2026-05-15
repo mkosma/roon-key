@@ -1,6 +1,6 @@
 import XCTest
 import Network
-@testable import roon_key
+@testable import roontrol
 
 /// Tests for NetworkProfile.evaluate(interfaces:) using simulated interface lists.
 /// No real NWPathMonitor is started; we test the pure classification logic.

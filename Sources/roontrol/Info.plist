@@ -6,11 +6,11 @@
     <key>LSUIElement</key>
     <true/>
     <key>CFBundleIdentifier</key>
-    <string>com.kosma.roon-key</string>
+    <string>com.kosma.roontrol</string>
     <key>CFBundleName</key>
-    <string>roon-key</string>
+    <string>roontrol</string>
     <key>CFBundleDisplayName</key>
-    <string>roon-key</string>
+    <string>roontrol</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>CFBundleShortVersionString</key>

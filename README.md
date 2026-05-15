@@ -1,4 +1,4 @@
-# roon-key
+# roontrol
 
 macOS menubar app that routes media keys and F13-F19 function keys to Roon via [roon-bridge](https://github.com/mkosma/roon-bridge).
 
@@ -8,7 +8,7 @@ macOS menubar app that routes media keys and F13-F19 function keys to Roon via [
 [Magic Keyboard]
       |
       v
-[roon-key: CGEventTap (mbp)]
+[roontrol: CGEventTap (mbp)]
       |
       | URLSession HTTP POST
       v
@@ -51,9 +51,9 @@ At-home detection: interception is active only when on the home LAN (ethernet or
 
 ### Option A: Xcode (recommended for mbp)
 
-Open `roon-key.xcodeproj` (once Xcode project is generated). Build and run.
+Open `roontrol.xcodeproj` (once Xcode project is generated). Build and run.
 
-Alternatively: File > Add Package Dependencies, add this repo, build the `roon-key` executable target.
+Alternatively: File > Add Package Dependencies, add this repo, build the `roontrol` executable target.
 
 ### Option B: Swift Package Manager + make-app.sh
 
@@ -69,7 +69,7 @@ scripts/make-app.sh --run          # also launch after install
 
 The script runs `swift build -c release`, assembles `Contents/{MacOS,Info.plist}`,
 injects `CFBundleExecutable` and `CFBundlePackageType`, codesigns, and copies
-the result to `/Applications/roon-key.app`. See `scripts/README-signing.md`
+the result to `/Applications/roontrol.app`. See `scripts/README-signing.md`
 to make the Accessibility grant persist across rebuilds.
 
 ### Note: mini cannot build this
@@ -86,13 +86,13 @@ Build on mbp (Xcode installed), then copy the `.app` back.
 
 ## Configuration
 
-Settings are stored in roon-bridge's `config.json` on the mini under the `roon_key` key.
+Settings are stored in roon-bridge's `config.json` on the mini under the `roontrol` key.
 The Settings popover (click the menubar icon) reads and writes via HTTP to roon-bridge.
 
 Default config:
 ```json
 {
-  "roon_key": {
+  "roontrol": {
     "active_zone_display_name": "WiiM + 1",
     "volume_step": 8,
     "ramp_step_ms": 20,
@@ -111,7 +111,7 @@ Default config:
 If you previously used Karabiner for roon media key routing, the Karabiner rules at
 `~/.config/karabiner/assets/complex_modifications/roon-media-keys.json` are no longer
 needed. You can remove that file and the corresponding rule in Karabiner-Elements.
-roon-key replaces that approach entirely.
+roontrol replaces that approach entirely.
 
 ## Future work
 

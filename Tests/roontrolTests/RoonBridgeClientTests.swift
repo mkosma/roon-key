@@ -1,6 +1,6 @@
 import XCTest
 import Foundation
-@testable import roon_key
+@testable import roontrol
 
 /// Tests for RoonBridgeClient request encoding and error handling.
 /// Uses a MockURLProtocol to intercept URLSession requests without

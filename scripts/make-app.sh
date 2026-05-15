@@ -1,5 +1,5 @@
 #!/bin/bash
-# Wrap the SPM-built roon-key binary into a proper macOS .app bundle.
+# Wrap the SPM-built roontrol binary into a proper macOS .app bundle.
 #
 # SPM produces only a bare executable, which cannot be granted Accessibility
 # permission (no stable bundle identifier) and does not behave as a menubar
@@ -35,7 +35,7 @@ cd "$REPO_ROOT"
 OUTPUT_DIR="$REPO_ROOT/build"
 mkdir -p "$OUTPUT_DIR"
 
-APP_NAME="roon-key"
+APP_NAME="roontrol"
 APP_BUNDLE="$OUTPUT_DIR/${APP_NAME}.app"
 
 echo "==> swift build -c $CONFIG"
@@ -53,10 +53,10 @@ mkdir -p "$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
 
 cp "$BIN_PATH" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
-cp "$REPO_ROOT/Sources/roon-key/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+cp "$REPO_ROOT/Sources/roontrol/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 
 # Copy SPM-generated resource bundle (fonts, menubar icon).
-RES_BUNDLE="$REPO_ROOT/.build/$CONFIG/roon-key_roon-key.bundle"
+RES_BUNDLE="$REPO_ROOT/.build/$CONFIG/roontrol_roontrol.bundle"
 if [[ -d "$RES_BUNDLE" ]]; then
     cp -R "$RES_BUNDLE" "$APP_BUNDLE/Contents/Resources/"
 else
@@ -75,12 +75,12 @@ fi
     "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
 
 # Sign the bundle. Prefer a stable self-signed identity (set
-# ROON_KEY_SIGN_IDENTITY in your shell rc to the name of a code-signing
+# ROONTROL_SIGN_IDENTITY in your shell rc to the name of a code-signing
 # cert in your login keychain). Ad-hoc is a fallback but will re-trigger
 # the TCC/Accessibility prompt on every rebuild because the cdhash
 # changes. With a named identity, TCC keys on the cert's designated
 # requirement and the grant persists across rebuilds.
-SIGN_IDENTITY="${ROON_KEY_SIGN_IDENTITY:--}"
+SIGN_IDENTITY="${ROONTROL_SIGN_IDENTITY:--}"
 if [[ "$SIGN_IDENTITY" == "-" ]]; then
     echo "==> codesign --sign - (ad-hoc; TCC will re-prompt on every rebuild)"
     echo "    To make Accessibility grants stick, see scripts/README-signing.md"
